@@ -8,9 +8,9 @@ are different. This file gives each part and its state.
 
 | Masters of Albion part | The Sims 4 part | State |
 |---|---|---|
-| `common/src/mod_api/ModApi.h` | `common/src/mod_api/Ts4ModApi.h`: the same interface. Native function callbacks (named byte signatures) replace the managed method callbacks. Python function callbacks come later. | Stage 1, in progress |
-| `common/src/mod_core` (tasks, frame callbacks, hotkeys, settings fields and file, slot swap, start-up guard, crash dump rules, folders) | The same, plus the signature parser and matcher. `UnityMath.h` goes. | Stage 1, in progress |
-| `common/src/mod_sdk` (`ModHost`, `BindFields`, `HostLogSink`) | The same, for `Ts4ModApi.h`. | Stage 1, in progress |
+| `common/src/mod_api/ModApi.h` | `common/src/mod_api/Ts4ModApi.h`: the same interface. Native function callbacks (named byte signatures) replace the managed method callbacks. Python function callbacks come later. | Stage 1, done |
+| `common/src/mod_core` (tasks, frame callbacks, hotkeys, settings fields and file, slot swap, start-up guard, crash dump rules, folders) | The same, plus the signature parser and matcher. `UnityMath.h` goes. | Stage 1, done |
+| `common/src/mod_sdk` (`ModHost`, `BindFields`, `HostLogSink`) | The same, for `Ts4ModApi.h`. | Stage 1, done |
 | `common/src/mod_game` (IL2CPP, managed objects, method hooks, hotkey input, game messages, crash dumps) | Hooks by signature (MinHook), the hotkey input, the game messages, crash dumps, and the Python 3.7 C API of the game. IL2CPP and managed objects go. | Stage 2 |
 | `mod_loader/src/core` (host table, loader settings, mod registry, mod catalogue, hook rules, overlay rules) | The same (`ts4_loader_core`), with the changes in "Stage 2: the core" below. | Stage 2, done (branch `loader/core`) |
 | `mod_loader/src/dlls/ModDllLoader` (the load and the checks of the mod DLLs) | The same (`ts4_loader_dlls`): the exports, the interface version, the ids, the guard after an access violation, the SHA-256 checksum of each DLL, the list of DLLs for the start-up guard. | Stage 2, done (branch `loader/core`) |
@@ -73,3 +73,13 @@ The keys `objects` and `maps` and the key `mods.map` are not ported.
   memory, as in Masters of Albion.
 - **Not ported:** `Pack*`, `KnackMerge`, `CarriableMerge`, `TypedMerge`, `TemplatePlan`, `ResourceLoads`,
   `MapOverrideSet`, `unitymesh` and the mod zips (and their tests). `src/game` comes in stage 3.
+
+### Decisions of the merger for stage 3
+
+- The extender compares the file names in `modDlls.disabled` with no difference between upper case and lower case,
+  because Windows does the same. (Masters of Albion compares the exact text.) Change it in stage 3.
+- Two signatures can match one address. After the scan, the extender joins the callbacks of all keys that resolve to
+  one address into one hook, and refuses the join if the `parameterCount` values are different.
+- `tickHook` stays. Stage 3 finds the native tick of the main thread in Ghidra and hooks it by signature.
+- `mods.disabled` (by mod id) stays. `TS4_MODS_SETTINGS` moves only `mods.json`; the folder of the DLL mods stays in
+  the settings folder until a need for more occurs.
