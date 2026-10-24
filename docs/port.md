@@ -12,8 +12,8 @@ are different. This file gives each part and its state.
 | `common/src/mod_core` (tasks, frame callbacks, hotkeys, settings fields and file, slot swap, start-up guard, crash dump rules, folders) | The same, plus the signature parser and matcher. `UnityMath.h` goes. | Stage 1, in progress |
 | `common/src/mod_sdk` (`ModHost`, `BindFields`, `HostLogSink`) | The same, for `Ts4ModApi.h`. | Stage 1, in progress |
 | `common/src/mod_game` (IL2CPP, managed objects, method hooks, hotkey input, game messages, crash dumps) | Hooks by signature (MinHook), the hotkey input, the game messages, crash dumps, and the Python 3.7 C API of the game. IL2CPP and managed objects go. | Stage 2 |
-| `mod_loader/src/core` (host table, loader settings, mod registry, mod catalogue, hook rules, overlay rules) | The same. | Stage 2 |
-| `mod_loader/src/dlls/ModDllLoader` (the load and the checks of the mod DLLs) | The same: checksums, interface version, ids, the start-up guard. | Stage 2 |
+| `mod_loader/src/core` (host table, loader settings, mod registry, mod catalogue, hook rules, overlay rules) | The same (`ts4_loader_core`), with the changes in "Stage 2: the core" below. | Stage 2, done (branch `loader/core`) |
+| `mod_loader/src/dlls/ModDllLoader` (the load and the checks of the mod DLLs) | The same (`ts4_loader_dlls`): the exports, the interface version, the ids, the guard after an access violation, the SHA-256 checksum of each DLL, the list of DLLs for the start-up guard. | Stage 2, done (branch `loader/core`) |
 | `mod_loader/src/game/overlay` (DXGI `Present` hook, Dear ImGui menu bar) | The same on the D3D11 swap chain of the game. | Stage 3 |
 | `mod_loader/src/game/proxy` (proxy `version.dll`) | The same proxy `version.dll` (`docs/research/loader/load.md`). | Stage 3; a game run must prove it |
 | `mod_loader/src/game/loader/Loader.cpp` | The start of the extender: after the activation wrapper decrypts the exe, find the signatures, start the hooks, load the mods. | Stage 3 |
@@ -27,3 +27,49 @@ are different. This file gives each part and its state.
 - A memory dump of the decrypted `TS4_x64.exe` for Ghidra. The dumper is ready
   (`D:\sims_4\experiments\loader-research\ts4_dump.py`); it needs one game start, and the EA app must run.
 - Which thread draws (the `Present` hook) and which thread runs the simulation and the game Python.
+
+## Stage 2: the core
+
+### The folder of the DLL mods
+
+The DLL mods are in `%LOCALAPPDATA%\Sims4Mods\dlls`: the folder `dlls` in the settings folder of `MakeModFolders`
+(common `mod_core/Folders.h`), next to `mods.json` and `logs` (`mods::ModDllFolder`, `mods::k_DllFolderName`). The
+environment variable `TS4_MODS_SETTINGS` moves `mods.json`; the folder of the DLL mods stays in the settings folder.
+Masters of Albion loads its mod DLLs from `<game>\mods`. This port does not, because the game folder
+`F:\Origin Games\The Sims 4` is read only: the only file of ours there is the loader DLL (`docs/research/loader/load.md`).
+
+### The keys of mods.json
+
+The extender owns the top-level keys `tickHook`, `liveReload`, `hotkeys`, `overlay`, `mods` and `modDlls`
+(`loader::k_LoaderKeys`). A mod cannot register a settings section with one of these names.
+
+| Key | Values | Masters of Albion |
+|---|---|---|
+| `tickHook` | `true`: one heartbeat line in the log in each 3600 ticks of the main thread. After a restart. | `frameHook` (the hook on `GameManager.Update`). The native tick is a hook by signature in stage 3. |
+| `liveReload` | Monitor `mods.json` and read the hotkeys while the game runs. After a restart. | The same. |
+| `hotkeys` | `enabled`, `messages`, `messageSeconds`, and the hotkey of each action by its name. | The same. |
+| `overlay` | `enabled` (after a restart), `fontScale`. | The same. |
+| `mods` | `disabled`: the ids of the DLL mods that are off. The extender reads the id (`Ts4ModGetInfo`), then unloads the DLL before `Ts4ModInit`. After a restart. | `mods` was the list of the mod zips (`disabled`, `map`). The zips are not ported, so `mods` names the DLL mods by id. |
+| `modDlls` | `disabled`: the file names of the DLLs that do not load. The start-up guard adds a DLL here after a start that did not complete. After a restart. | The same. |
+
+The keys `objects` and `maps` and the key `mods.map` are not ported.
+
+### What changed
+
+- **Function callbacks** (`core/HookRules.h`): a callback names a native function by its module (`TS4_x64.exe` or
+  `Simulation_x64.dll`) and the signature text of its first bytes, in place of a managed method. The key of a
+  function is the module and the normal form of the signature (`Signature::ToString`), so two texts of one signature
+  name one function. All callbacks on one function must have the same `parameterCount` (0 to 4), because the function
+  has one hook. Masters of Albion compared the parameter types of the method.
+- **SHA-256** (`core/Sha256.h`): Masters of Albion has no checksum of a mod DLL. This port has a small SHA-256
+  (FIPS 180-4, tested with the NIST vectors) in the core. The DLL loader reads the checksum of each DLL before the
+  load, also of a DLL that is off; the log and the list of the DLL mods (`mods::DescribeModDll`) give it.
+- **The mod catalogue** (`core/ModCatalogue.h`): only the parts for DLL mods. It has the record of each DLL (file,
+  checksum, state, the reason that it is off, id, name, version), the switches by file name and by id, and the rules
+  of the start-up guard for the DLLs (the feature `dll:<file>`, and `modDlls.disabled` after a start that did not
+  complete). Masters of Albion has these rules in `Loader.cpp`; here they are in the core, with tests.
+- **The DLL loader** owns each DLL handle (RAII). When the loader goes out of scope, it calls `Ts4ModShutdown`,
+  removes the registrations and unloads the DLLs. A DLL whose code can still be in use (an access violation) stays in
+  memory, as in Masters of Albion.
+- **Not ported:** `Pack*`, `KnackMerge`, `CarriableMerge`, `TypedMerge`, `TemplatePlan`, `ResourceLoads`,
+  `MapOverrideSet`, `unitymesh` and the mod zips (and their tests). `src/game` comes in stage 3.
