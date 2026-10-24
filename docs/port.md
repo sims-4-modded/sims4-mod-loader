@@ -15,14 +15,15 @@ are different. This file gives each part and its state.
 | `mod_loader/src/core` (host table, loader settings, mod registry, mod catalogue, hook rules, overlay rules) | The same. | Stage 2 |
 | `mod_loader/src/dlls/ModDllLoader` (the load and the checks of the mod DLLs) | The same: checksums, interface version, ids, the start-up guard. | Stage 2 |
 | `mod_loader/src/game/overlay` (DXGI `Present` hook, Dear ImGui menu bar) | The same on the D3D11 swap chain of the game. | Stage 3 |
-| `mod_loader/src/game/proxy` (proxy `version.dll`) | A proxy of the DLL that the research finds (see below). | Stage 3, after the research |
+| `mod_loader/src/game/proxy` (proxy `version.dll`) | The same proxy `version.dll` (`docs/research/loader/load.md`). | Stage 3; a game run must prove it |
 | `mod_loader/src/game/loader/Loader.cpp` | The start of the extender: after the activation wrapper decrypts the exe, find the signatures, start the hooks, load the mods. | Stage 3 |
 | Mod zips, map overrides, custom objects, packs, the merges, `unitymesh` | Not ported. These are Unity data of Masters of Albion. Packages and tuning of The Sims 4 come later, if a mod needs them. | Not ported |
 | (new) | The native Python module of the extender for script mods. | Stage 4 |
 
 ## Research before stage 3
 
-- How the game loads the extender: the DLLs that `TS4_x64.exe` loads by name from `Game\Bin`, and which one a proxy
-  can replace. In progress.
-- A memory dump of the decrypted `TS4_x64.exe` for Ghidra. In progress.
+- How the game loads the extender: a proxy `version.dll` (static research done, `docs/research/loader/load.md`). A
+  game run must show the load time and path of each module.
+- A memory dump of the decrypted `TS4_x64.exe` for Ghidra. The dumper is ready
+  (`D:\sims_4\experiments\loader-research\ts4_dump.py`); it needs one game start, and the EA app must run.
 - Which thread draws (the `Present` hook) and which thread runs the simulation and the game Python.
