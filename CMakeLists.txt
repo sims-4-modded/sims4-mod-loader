@@ -48,6 +48,13 @@ target_include_directories(ts4_loader_core PUBLIC src)
 target_link_libraries(ts4_loader_core PUBLIC ts4_common ts4_mod_core ts4_mod_api nlohmann_json::nlohmann_json)
 ts4_set_warnings(ts4_loader_core)
 
+# The load of the DLL mods. Windows only, but it needs no game: the tests load small test mods.
+add_library(ts4_loader_dlls STATIC src/dlls/ModDllLoader.h src/dlls/ModDllLoader.cpp)
+target_include_directories(ts4_loader_dlls PUBLIC src)
+target_compile_definitions(ts4_loader_dlls PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
+target_link_libraries(ts4_loader_dlls PUBLIC ts4_loader_core)
+ts4_set_warnings(ts4_loader_dlls)
+
 if (TS4_LOADER_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)
