@@ -40,6 +40,30 @@ DLLs of that table that are not KnownDLLs (42 entries in `\KnownDlls`), so Windo
    with the EA overlay (`igo64.dll`) and ReShade-style tools.
 4. Not `winhttp.dll`: it loads with the activation DLL, before the decryption, in the network path of the DRM.
 
+## The game run of 2026-10-25
+
+One start of `Game\Bin\TS4_x64.exe` with the EA app open, to the main menu, no save. Output:
+`D:\sims_4\runs\2026-10-25-loader-research`.
+
+- **Two processes.** The first `TS4_x64.exe` loads `Core\Activation64.dll` and its network DLLs, then stops after
+  approximately 0.2 seconds (exit code 100010). The EA app then starts the real game process. In the first process,
+  system DLLs load `version.dll` before the decryption. A proxy in `Game\Bin` will thus also load in that process. The
+  extender must do nothing there: it forwards the exports, and it starts only when the decrypted exe is ready.
+- **The load order in the game process** (141 modules): `TS4_x64.exe`, `Core\Activation64.dll`, ... `version.dll`
+  (index 42, System32 now), `d3d11.dll` (65), `dxgi.dll` (66), `WINMM.dll` (70), the EA overlay `IGO64.dll` (79), the
+  graphics driver (98), `Simulation_x64.dll` (115, `Game\Bin`), `python37_x64.dll` (116, `Game\Bin`),
+  `DiscordHook64.dll` (139). The real import table of the exe points into `version.dll` (3 entries) and `WINMM.dll`
+  (3). Thus `version.dll` loads after the decryption and before the D3D11 device and Python. This supports the proxy
+  `version.dll`.
+- **No fixed base in practice.** `Simulation_x64.dll` loaded at `0x38FC0000`, not at its base `0xF000000`.
+- **Decryption.** In memory, `.text` has an entropy of 6.48 (8.0 on disk) and `.data` 4.09 (8.0 on disk). The dump
+  `D:\sims_4\dump\TS4_1.128.90.1030\TS4_x64.image.bin` passes the checks of the Ghidra import.
+- **Other swap-chain hooks.** The EA overlay (`IGO64.dll`) and the Discord overlay (`DiscordHook64.dll`) hook the swap
+  chain too. The `Present` hook of the menu bar must work with them.
+- **The window.** Title `The Sims™ 4`, class `Canvas-<hex>`; the class changes at each start. Find the window by the
+  process and the title, not by the class.
+- 159 threads at the main menu.
+
 ## Risks and open points
 
 - The early load and the search of `Game\Bin` come from the import tables. A game run must prove them: the time that
