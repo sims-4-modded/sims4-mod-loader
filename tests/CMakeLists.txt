@@ -3,7 +3,9 @@ find_package(GTest CONFIG REQUIRED)
 add_executable(
   ts4_loader_tests
   test_HookRules.cpp
+  test_HostTable.cpp
   test_LoaderSettings.cpp
+  test_ModRegistry.cpp
   test_OverlayRules.cpp
   test_Sha256.cpp
 )
