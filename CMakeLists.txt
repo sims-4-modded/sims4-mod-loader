@@ -1,0 +1,48 @@
+# ******************************************************************************
+# Copyright (c) 2026 Sims 4 mods developers
+# ******************************************************************************
+
+# The extender of The Sims 4: the DLL that the game loads. It loads the DLL mods from the folder "dlls" in the settings
+# folder of the mods (%LOCALAPPDATA%\Sims4Mods). The DLL that goes to the game must bring no other DLL, so every target
+# uses only the static C runtime and static libraries.
+
+cmake_minimum_required(VERSION 3.25 FATAL_ERROR)
+
+project(
+  ts4_mod_loader
+  VERSION 0.1.0
+  LANGUAGES C CXX
+)
+
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+option(TS4_LOADER_BUILD_TESTS "Build the tests of the mod loader" ON)
+
+# The shared code (git submodule).
+add_subdirectory(external/common)
+
+find_package(nlohmann_json CONFIG REQUIRED)
+
+# The parts of the extender that do not need the game: the settings, the checksums and the rules of the hooks and of
+# the menu bar.
+add_library(
+  ts4_loader_core STATIC
+  src/core/HookRules.h
+  src/core/LoaderSettings.h
+  src/core/OverlayRules.h
+  src/core/Sha256.h
+  src/core/HookRules.cpp
+  src/core/LoaderSettings.cpp
+  src/core/Sha256.cpp
+)
+target_include_directories(ts4_loader_core PUBLIC src)
+target_link_libraries(ts4_loader_core PUBLIC ts4_common ts4_mod_core ts4_mod_api nlohmann_json::nlohmann_json)
+ts4_set_warnings(ts4_loader_core)
+
+if (TS4_LOADER_BUILD_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif ()
