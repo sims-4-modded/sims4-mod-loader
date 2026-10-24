@@ -27,18 +27,20 @@ add_subdirectory(external/common)
 find_package(nlohmann_json CONFIG REQUIRED)
 
 # The parts of the extender that do not need the game: the settings, the registry of the mods, the table of a mod, the
-# checksums and the rules of the hooks and of the menu bar.
+# list of the DLL mods, the checksums and the rules of the hooks and of the menu bar.
 add_library(
   ts4_loader_core STATIC
   src/core/HookRules.h
   src/core/HostTable.h
   src/core/LoaderSettings.h
+  src/core/ModCatalogue.h
   src/core/ModRegistry.h
   src/core/OverlayRules.h
   src/core/Sha256.h
   src/core/HookRules.cpp
   src/core/HostTable.cpp
   src/core/LoaderSettings.cpp
+  src/core/ModCatalogue.cpp
   src/core/ModRegistry.cpp
   src/core/Sha256.cpp
 )
