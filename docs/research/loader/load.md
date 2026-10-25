@@ -32,7 +32,7 @@ DLLs of that table that are not KnownDLLs (42 entries in `\KnownDlls`), so Windo
 
 ## The choice: a proxy `version.dll`
 
-1. **`version.dll`** (the choice). The decrypted exe and `python37_x64.dll` import it, so it loads before the D3D11
+1. **`version.dll`** (the choice; the run with the proxy below shows that the game never loads it). The decrypted exe and `python37_x64.dll` import it, so it loads before the D3D11
    device and before Python. It has 17 exports by name. The Masters of Albion loader uses the same mechanism, so the
    proxy stubs port directly.
 2. `winmm.dll`: the same early time, but 181 exports.
@@ -63,6 +63,38 @@ One start of `Game\Bin\TS4_x64.exe` with the EA app open, to the main menu, no s
 - **The window.** Title `The Sims™ 4`, class `Canvas-<hex>`; the class changes at each start. Find the window by the
   process and the title, not by the class.
 - 159 threads at the main menu.
+
+## The game run with the proxy (2026-10-25, stage 3a)
+
+One start with `install.py install` and `install.py launch`, to the main menu, no save. Output:
+`D:\sims_4\runs\2026-10-25-loader-proxy`. The proxy `version.dll` (extender 0.1.0, SHA-256
+`93dbb71b5b6175d927eea216ca3f1c7586fb1d65c9ea8382957dcebcd797157e`) was in `Game\Bin`.
+
+- **The game never loaded the proxy.** No process wrote `loader.log`: not the stub, not the game process. The game
+  process had `C:\WINDOWS\system32\version.dll` loaded, and no `version.dll` from `Game\Bin`.
+- **Why.** In both processes a system DLL loads `version.dll` before the activation wrapper resolves the real import
+  table of the exe. The Windows loader then uses the module that is already there (it matches by name):
+  - Game process: `version.dll` (a lower-case System32 path) loads right after `amsi.dll`, `USERENV.dll` and the
+    Defender AMSI provider `MpOav.dll`. `MpOav.dll` does not import it, so it probably loads it with `LoadLibraryEx`
+    and a System32-only search (not proved with a debugger).
+  - Stub process (research run): `VERSION.dll` loads from System32 right after `ieframe.dll`. COM loads `ieframe.dll`
+    with the altered search path (its own folder, then System32), so its imports come from System32, not `Game\Bin`.
+- So the import tables gave a false search order for `version.dll`: the real import table does not load it; it finds
+  it already loaded.
+- The game ran normally with the file in place: main menu, no new exception log.
+- After the run, `install.py uninstall` removed the file, because it does nothing.
+
+### What follows for the choice of the DLL
+
+- `version.dll` cannot load the extender on this computer while AMSI (Defender) and COM load it first. Another
+  antivirus can change this, so it is not reliable either way.
+- The next candidate must load first through the exe or a game DLL, never through a system DLL before the
+  decryption. From the module list of the game process: `WINMM.dll` (index 70, after the decryption; the exe and
+  `Simulation_x64.dll` import it), `dxgi.dll` and `d3d11.dll` (65, 66), `DSOUND.dll`, `HID.DLL`, `dbghelp.dll`.
+  Each one needs a run that shows its path and the module that loaded it first, and the user's approval for a new
+  file in `Game\Bin` (CLAUDE.md allows only `version.dll`).
+- A cheap check before that run: start the game with no proxy and record, for each candidate, which module loaded it
+  first and from which folder (a DLL load event trace, or `ts4_dump.py watch` extended with the loading module).
 
 ## Risks and open points
 
