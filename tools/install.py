@@ -2,11 +2,12 @@
 # ******************************************************************************
 # Copyright (c) 2026 Sims 4 mods developers
 # ******************************************************************************
-"""Put the extender (version.dll) in the game, remove it, show its state, start the game, and add DLL mods.
+"""Put the extender (winmm.dll) in the game, remove it, show its state, start the game, and add DLL mods.
 
-The extender is one file in the game folder: Game\\Bin\\version.dll. The game folder is read only for everything else:
-the script writes and removes no other file there. The script refuses to replace or remove a version.dll that is not
-the extender. It knows the extender by the export name Ts4ModLoaderVersion in the file, and it keeps the SHA-256 of
+The extender is one file in the game folder: Game\\Bin\\winmm.dll. The user approved only this file name. The game
+folder is read only for everything else: the script writes and removes no other file there, and it refuses every other
+name (for example version.dll, which the game never loads from Game\\Bin). The script refuses to replace or remove a
+winmm.dll that is not the extender. It knows the extender by the export name Ts4ModLoaderVersion in the file, and it keeps the SHA-256 of
 each file that it installed in %LOCALAPPDATA%\\Sims4Mods\\install-state.json. It refuses to change a file while
 TS4_x64.exe runs, because Windows locks a loaded DLL.
 
@@ -14,7 +15,7 @@ The DLL mods go into %LOCALAPPDATA%\\Sims4Mods\\dlls. The script backs up a DLL 
 replaces or removes it (%LOCALAPPDATA%\\Sims4Mods\\backups).
 
     python tools/install.py status
-    python tools/install.py install [--dll build/x64-release/version.dll]
+    python tools/install.py install [--dll build/x64-release/winmm.dll]
     python tools/install.py uninstall
     python tools/install.py launch                 (the EA app must run)
     python tools/install.py mods list
@@ -37,11 +38,12 @@ from pathlib import Path
 from typing import Callable, Optional
 
 GAME = Path(r"F:\Origin Games\The Sims 4")
-TARGET_IN_GAME = Path("Game") / "Bin" / "version.dll"
+LOADER_NAME = "winmm.dll"
+TARGET_IN_GAME = Path("Game") / "Bin" / LOADER_NAME
 GAME_EXE_IN_GAME = Path("Game") / "Bin" / "TS4_x64.exe"
 GAME_EXE_NAME = "TS4_x64.exe"
 EA_APP_NAME = "EADesktop.exe"
-DEFAULT_DLL = Path(__file__).resolve().parents[1] / "build" / "x64-release" / "version.dll"
+DEFAULT_DLL = Path(__file__).resolve().parents[1] / "build" / "x64-release" / LOADER_NAME
 LOADER_MARKER = b"Ts4ModLoaderVersion"
 # A DLL mod exports these functions, so their names are in the file.
 MOD_MARKERS = (b"Ts4ModApiVersion", b"Ts4ModGetInfo", b"Ts4ModInit", b"Ts4ModShutdown")
@@ -169,7 +171,7 @@ def refuse_while_game_runs(places: Places) -> None:
 
 
 def is_ours(places: Places, path: Path) -> bool:
-    """Return True if the version.dll is the extender: the marker is in the file, or the script installed this file."""
+    """Return True if the winmm.dll is the extender: the marker is in the file, or the script installed this file."""
     if not path.is_file():
         return False
     recorded = load_state(places).get("loader", {}).get("sha256")
@@ -179,6 +181,8 @@ def is_ours(places: Places, path: Path) -> bool:
 def install(places: Places, dll: Path, target: Optional[Path] = None) -> int:
     target = checked_target(places, target)
     refuse_while_game_runs(places)
+    if dll.name.lower() != LOADER_NAME:
+        sys.exit(f"{dll} is not named {LOADER_NAME}; the user approved only {LOADER_NAME} in the game folder")
     if not dll.is_file() or not is_loader(dll):
         sys.exit(f"{dll} is not a build of the extender: it has no export {LOADER_MARKER.decode()}")
     if target.exists() and not is_ours(places, target):
@@ -431,11 +435,12 @@ def self_test() -> int:
             return False
 
         def fake_dll(path: Path, *markers: bytes) -> Path:
+            path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(b"MZ" + b"\0".join(markers) + b"\0" + path.name.encode())
             return path
 
         # The extender.
-        loader = fake_dll(root / "version.dll", LOADER_MARKER)
+        loader = fake_dll(root / LOADER_NAME, LOADER_MARKER)
         assert install(places, loader) == 0 and is_loader(places.target)
         assert load_state(places)["loader"]["sha256"] == sha256(places.target)
         assert status(places) == 0
@@ -445,17 +450,21 @@ def self_test() -> int:
         assert uninstall(places) == 0 and not places.target.exists()
         assert "loader" not in load_state(places)
         assert uninstall(places) == 0, "a second uninstall does nothing"
-        # A version.dll that is not ours stays.
-        places.target.write_bytes(b"MZ other version.dll")
-        assert refused(lambda: install(places, loader)), "a foreign version.dll was replaced"
-        assert refused(lambda: uninstall(places)), "a foreign version.dll was removed"
+        # A winmm.dll that is not ours stays.
+        places.target.write_bytes(b"MZ other winmm.dll")
+        assert refused(lambda: install(places, loader)), "a foreign winmm.dll was replaced"
+        assert refused(lambda: uninstall(places)), "a foreign winmm.dll was removed"
         assert status(places) == 1
-        assert places.target.read_bytes() == b"MZ other version.dll"
+        assert places.target.read_bytes() == b"MZ other winmm.dll"
         places.target.unlink()
-        # Only the extender goes into the game folder, and only to Game\Bin\version.dll.
-        assert refused(lambda: install(places, fake_dll(root / "plain.dll"))), "a DLL that is not the extender went in"
-        assert refused(lambda: install(places, loader, game / "Game" / "Bin" / "winmm.dll")), "another path was used"
-        assert refused(lambda: install(places, loader, game / "version.dll")), "another path was used"
+        # Only the extender goes into the game folder, and only to Game\Bin\winmm.dll.
+        assert refused(lambda: install(places, fake_dll(root / "plain" / LOADER_NAME))), "not the extender went in"
+        assert refused(lambda: install(places, loader, game / "Game" / "Bin" / "version.dll")), "version.dll was used"
+        assert refused(lambda: install(places, loader, game / "Game" / "Bin" / "dxgi.dll")), "another name was used"
+        assert refused(lambda: install(places, loader, game / LOADER_NAME)), "another path was used"
+        # A build of the extender with another file name does not go in.
+        assert refused(lambda: install(places, fake_dll(root / "version.dll", LOADER_MARKER))), "version.dll went in"
+        assert not (game / "Game" / "Bin" / "version.dll").exists()
         assert refused(lambda: checked_target(dataclasses.replace(places, game=root / "nothing"))), "no game, no install"
         # Nothing changes while the game runs.
         runs.add(GAME_EXE_NAME)
@@ -525,7 +534,7 @@ def main() -> int:
     parser.add_argument("command", choices=["status", "install", "uninstall", "launch", "mods"])
     parser.add_argument("action", nargs="?", choices=["list", "add", "remove"], help="the action of the mods command")
     parser.add_argument("target", nargs="?", help="mods add: the DLL; mods remove: the file name")
-    parser.add_argument("--dll", type=Path, default=DEFAULT_DLL, help="install: the version.dll of the build")
+    parser.add_argument("--dll", type=Path, default=DEFAULT_DLL, help="install: the winmm.dll of the build")
     args = parser.parse_args()
     places = real_places()
     if args.command == "mods":
