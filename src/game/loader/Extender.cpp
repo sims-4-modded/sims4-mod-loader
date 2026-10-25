@@ -1754,7 +1754,7 @@ void StartExtender(LoaderLog& startLog, const ExtenderStart& start)
 	auto* state = std::make_unique<LoaderState>(startLog.Path(), start).release();
 	auto sink = std::make_shared<LoaderLogSink>(state->log);
 	spdlog::set_default_logger(std::make_shared<spdlog::logger>("", sink));
-	state->overlayLog = std::make_shared<spdlog::logger>("menu bar", sink);
+	state->overlayLog = std::make_shared<spdlog::logger>("", sink);
 
 	LoadSettingsFile(*state);
 	state->live = state->settings.liveReload;
