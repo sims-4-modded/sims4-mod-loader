@@ -19,6 +19,7 @@
 #include <MinHook.h>
 #include <core/HookRules.h>
 #include <d3d11.h>
+#include <dxgi1_4.h>
 #include <mod_game/WideText.h>
 #include <spdlog/spdlog.h>
 #include <windows.h>
@@ -33,12 +34,17 @@ namespace
 {
 using PresentFunction = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT);
 using ResizeBuffersFunction = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
+using Present1Function = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain1*, UINT, UINT, const DXGI_PRESENT_PARAMETERS*);
+using ResizeBuffers1Function = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain3*, UINT, UINT, UINT, DXGI_FORMAT, UINT, const UINT*,
+                                                           IUnknown* const*);
 
 /// The hooks of the process. A code pointer cannot carry data, so the hook functions find the hooks here.
 std::atomic<DxgiHooks*> s_hooks = nullptr;
 /// The trampolines to the original functions. The install sets each one time, before the hook is on the code.
 std::atomic<PresentFunction> s_originalPresent = nullptr;
 std::atomic<ResizeBuffersFunction> s_originalResizeBuffers = nullptr;
+std::atomic<Present1Function> s_originalPresent1 = nullptr;
+std::atomic<ResizeBuffers1Function> s_originalResizeBuffers1 = nullptr;
 /// The depth of the hook calls on this thread.
 thread_local HookDepth t_depth;
 /// The hook calls in progress on all threads. The destructor of the hooks waits until no call uses the listener.
@@ -100,10 +106,62 @@ HRESULT STDMETHODCALLTYPE HookResizeBuffers(IDXGISwapChain* self, UINT count, UI
 	return original(self, count, width, height, format, flags);
 }
 
-/// The hook functions of the extender. The install never keeps one of them as an original function.
-[[nodiscard]] std::array<uintptr_t, 2> OwnHooks()
+HRESULT STDMETHODCALLTYPE HookPresent1(IDXGISwapChain1* self, UINT syncInterval, UINT flags,
+                                       const DXGI_PRESENT_PARAMETERS* parameters)
 {
-	return {reinterpret_cast<uintptr_t>(&HookPresent), reinterpret_cast<uintptr_t>(&HookResizeBuffers)};
+	const auto original = s_originalPresent1.load(std::memory_order_acquire);
+	const ActiveCall active;
+	const HookScope scope(t_depth);
+	auto* hooks = s_hooks.load(std::memory_order_acquire);
+	if (scope.LoopFound() && hooks != nullptr)
+	{
+		hooks->ReportLoop("Present1");
+	}
+	if (!scope.Outer() || hooks == nullptr)
+	{
+		return original(self, syncInterval, flags, parameters);
+	}
+	hooks->Listener().BeforePresent(self, flags);
+	const auto result = original(self, syncInterval, flags, parameters);
+	hooks->Listener().AfterPresent(self, result);
+	return result;
+}
+
+HRESULT STDMETHODCALLTYPE HookResizeBuffers1(IDXGISwapChain3* self, UINT count, UINT width, UINT height, DXGI_FORMAT format,
+                                             UINT flags, const UINT* nodeMasks, IUnknown* const* queues)
+{
+	const auto original = s_originalResizeBuffers1.load(std::memory_order_acquire);
+	const ActiveCall active;
+	const HookScope scope(t_depth);
+	auto* hooks = s_hooks.load(std::memory_order_acquire);
+	if (scope.LoopFound() && hooks != nullptr)
+	{
+		hooks->ReportLoop("ResizeBuffers1");
+	}
+	if (scope.Outer() && hooks != nullptr)
+	{
+		hooks->Listener().BeforeResizeBuffers(self);
+	}
+	return original(self, count, width, height, format, flags, nodeMasks, queues);
+}
+
+/// The hook functions of the extender. The install never keeps one of them as an original function.
+[[nodiscard]] std::array<uintptr_t, 4> OwnHooks()
+{
+	return {reinterpret_cast<uintptr_t>(&HookPresent), reinterpret_cast<uintptr_t>(&HookResizeBuffers),
+	        reinterpret_cast<uintptr_t>(&HookPresent1), reinterpret_cast<uintptr_t>(&HookResizeBuffers1)};
+}
+
+/// The vtable of the interface `T` of a COM object, or null if the object does not have the interface.
+template <typename T>
+[[nodiscard]] void** InterfaceVtable(IUnknown* object)
+{
+	ComPtr<T> other;
+	if (FAILED(object->QueryInterface(IID_PPV_ARGS(&other))))
+	{
+		return nullptr;
+	}
+	return *reinterpret_cast<void***>(other.Get());
 }
 
 /// The module of this code, for the class of the hidden window.
@@ -350,7 +408,7 @@ ts4::Result<std::unique_ptr<DxgiHooks>> DxgiHooks::Install(SwapChainListener& li
 	{
 		return ts4::MakeError("the probe could not make a window (error {})", GetLastError());
 	}
-	void** vtable = nullptr;
+	Vtables vtables;
 	{
 		LogStep(log, "menu bar: step 2: the probe makes a Direct3D 11 device and swap chain");
 		auto probe = ProbeD3D11(window.Get());
@@ -359,13 +417,17 @@ ts4::Result<std::unique_ptr<DxgiHooks>> DxgiHooks::Install(SwapChainListener& li
 			return probe.GetError();
 		}
 		// The vtable is in DXGI and stays after the probe releases its swap chain.
-		vtable = *reinterpret_cast<void***>(probe.Value().Get());
+		auto* swapChain = probe.Value().Get();
+		vtables = Vtables {.swapChain = *reinterpret_cast<void***>(swapChain),
+		                   .swapChain1 = InterfaceVtable<IDXGISwapChain1>(swapChain),
+		                   .swapChain3 = InterfaceVtable<IDXGISwapChain3>(swapChain)};
 		LogStep(log, "menu bar: step 3: the probe releases its Direct3D 11 objects");
 	}
 	// The hooks must find the hooks object before the first call through a hook.
 	s_hooks = hooks.get();
-	LogStep(log, "menu bar: step 4: the extender puts its hooks on the code of Present and ResizeBuffers");
-	hooks->HookFunctions(vtable);
+	LogStep(log,
+	        "menu bar: step 4: the extender puts its hooks on the code of Present, ResizeBuffers, Present1 and ResizeBuffers1");
+	hooks->HookFunctions(vtables);
 	LogStep(log, "menu bar: step 5: the probe removes its window");
 	if (!hooks->_present)
 	{
@@ -380,25 +442,47 @@ ts4::Result<std::unique_ptr<DxgiHooks>> DxgiHooks::Install(SwapChainListener& li
 	return hooks;
 }
 
-void DxgiHooks::HookFunctions(void** vtable)
+void DxgiHooks::HookFunctions(const Vtables& vtables)
 {
-	const auto vtableModule = ModuleOf(vtable);
+	const auto vtableModule = ModuleOf(vtables.swapChain);
 	_module = ModuleName(vtableModule);
 	const auto ownHooks = OwnHooks();
 	struct Target
 	{
 		const char* name;
+		void** vtable;
 		Slot slot;
 		void* detour;
 		std::unique_ptr<CodeHook>* hook;
 	};
 	const std::array targets {
-	    Target {"Present", k_Present, reinterpret_cast<void*>(&HookPresent), &_present},
-	    Target {"ResizeBuffers", k_ResizeBuffers, reinterpret_cast<void*>(&HookResizeBuffers), &_resizeBuffers},
+	    Target {"Present", vtables.swapChain, k_Present, reinterpret_cast<void*>(&HookPresent), &_present},
+	    Target {"ResizeBuffers", vtables.swapChain, k_ResizeBuffers, reinterpret_cast<void*>(&HookResizeBuffers),
+	            &_resizeBuffers},
+	    Target {"Present1", vtables.swapChain1, k_Present1, reinterpret_cast<void*>(&HookPresent1), &_present1},
+	    Target {"ResizeBuffers1", vtables.swapChain3, k_ResizeBuffers1, reinterpret_cast<void*>(&HookResizeBuffers1),
+	            &_resizeBuffers1},
 	};
+	// The functions that have a hook now. Two interfaces can share one function; the second then uses the first hook.
+	std::vector<void*> hooked;
 	for (const auto& target : targets)
 	{
-		auto* function = std::atomic_ref<void*>(vtable[target.slot]).load();
+		if (target.vtable == nullptr)
+		{
+			_notes.push_back(std::format("no hook on {}: the swap chain does not have its interface", target.name));
+			continue;
+		}
+		if (ModuleOf(target.vtable) != vtableModule)
+		{
+			_notes.push_back(std::format("no hook on {}: its vtable is not in {}", target.name, _module));
+			continue;
+		}
+		auto* function = std::atomic_ref<void*>(target.vtable[target.slot]).load();
+		if (std::ranges::find(hooked, function) != hooked.end())
+		{
+			LogStep(_log, "menu bar: {} is the same function as an earlier hook", target.name);
+			continue;
+		}
 		const auto functionModule = ModuleOf(function);
 		const auto error = CheckHookTarget(reinterpret_cast<uintptr_t>(function), ownHooks,
 		                                   vtableModule != nullptr && functionModule == vtableModule);
@@ -416,14 +500,22 @@ void DxgiHooks::HookFunctions(void** vtable)
 			continue;
 		}
 		// Set the original function before the jump goes into the code: the first call can come at once.
-		if (target.slot == k_Present)
+		switch (target.slot)
 		{
+		case k_Present:
 			s_originalPresent = reinterpret_cast<PresentFunction>((*hook)->Original());
-		}
-		else
-		{
+			break;
+		case k_ResizeBuffers:
 			s_originalResizeBuffers = reinterpret_cast<ResizeBuffersFunction>((*hook)->Original());
+			break;
+		case k_Present1:
+			s_originalPresent1 = reinterpret_cast<Present1Function>((*hook)->Original());
+			break;
+		case k_ResizeBuffers1:
+			s_originalResizeBuffers1 = reinterpret_cast<ResizeBuffers1Function>((*hook)->Original());
+			break;
 		}
+		hooked.push_back(function);
 		Watch(std::format("the code of {} before the hook", target.name), function);
 		if (auto enabled = (*hook)->Enable(); !enabled)
 		{
@@ -477,7 +569,7 @@ DxgiHooks::~DxgiHooks()
 
 void DxgiHooks::Restore()
 {
-	for (auto* hook : {_present.get(), _resizeBuffers.get()})
+	for (auto* hook : {_present.get(), _resizeBuffers.get(), _present1.get(), _resizeBuffers1.get()})
 	{
 		if (hook != nullptr)
 		{
@@ -544,6 +636,8 @@ nlohmann::json DxgiHooks::Describe() const
 	    {"module", _module},
 	    {"present", _present && _present->Installed()},
 	    {"resizeBuffers", _resizeBuffers && _resizeBuffers->Installed()},
+	    {"present1", _present1 && _present1->Installed()},
+	    {"resizeBuffers1", _resizeBuffers1 && _resizeBuffers1->Installed()},
 	    {"notes", _notes},
 	};
 }

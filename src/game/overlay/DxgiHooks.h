@@ -80,10 +80,11 @@ private:
 	bool _installed = false;
 };
 
-/// The hooks on `IDXGISwapChain::Present` and `IDXGISwapChain::ResizeBuffers`.
+/// The hooks on `IDXGISwapChain::Present` and `IDXGISwapChain::ResizeBuffers`, and on `IDXGISwapChain1::Present1` and
+/// `IDXGISwapChain3::ResizeBuffers1`. The Sims 4 presents its frames with `Present1`.
 ///
-/// The extender makes a small Direct3D 11 device and swap chain of its own on a hidden window, and reads the two
-/// functions from the vtable of that swap chain. All DXGI swap chains of the process call the same functions. The
+/// The extender makes a small Direct3D 11 device and swap chain of its own on a hidden window, and reads the
+/// functions from the vtables of that swap chain. All DXGI swap chains of the process call the same functions. The
 /// extender then puts a hook on the code of each function, and does not change the vtable.
 ///
 /// Other programs also hook these functions in the game: the EA overlay (`IGO64.dll`) and the Discord overlay
@@ -127,6 +128,17 @@ public:
 	{
 		k_Present = 8,
 		k_ResizeBuffers = 13,
+		k_Present1 = 22,
+		k_ResizeBuffers1 = 39,
+	};
+
+	/// The vtables of the interfaces of the probe swap chain. A vtable of an interface that the swap chain does not have
+	/// is null.
+	struct Vtables
+	{
+		void** swapChain = nullptr;
+		void** swapChain1 = nullptr;
+		void** swapChain3 = nullptr;
 	};
 
 private:
@@ -146,13 +158,15 @@ private:
 		bool warned = false; ///< The log has a warning for a change of this code.
 	};
 
-	void HookFunctions(void** vtable);
+	void HookFunctions(const Vtables& vtables);
 	void Watch(std::string name, const void* code);
 
 	SwapChainListener& _listener;
 	spdlog::logger& _log;
 	std::unique_ptr<CodeHook> _present;
 	std::unique_ptr<CodeHook> _resizeBuffers;
+	std::unique_ptr<CodeHook> _present1;
+	std::unique_ptr<CodeHook> _resizeBuffers1;
 	std::string _module;
 	std::vector<CodeWatch> _watches;
 	std::vector<std::string> _notes;
