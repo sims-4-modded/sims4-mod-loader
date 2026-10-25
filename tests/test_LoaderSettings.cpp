@@ -175,3 +175,19 @@ TEST(LoaderSettings, EditOfAFieldGivesAPatchOfOneField)
 	ASSERT_TRUE(off);
 	EXPECT_EQ(off->patch, nlohmann::json({{"liveReload", false}}));
 }
+
+TEST(LoaderSettings, ThePinOfTheMenuBarChangesLive)
+{
+	const auto settings = ParseLoaderSettings(R"({"overlay": {"pinned": true}})");
+	ASSERT_TRUE(settings) << settings.GetError().message;
+	EXPECT_TRUE(settings->overlay.pinned);
+	EXPECT_FALSE(LoaderSettings {}.overlay.pinned);
+	EXPECT_FALSE(ParseLoaderSettings(R"({"overlay": {"pinned": 1}})"));
+	const auto change = CompareLoaderSettings(LoaderSettings {}, *settings);
+	EXPECT_TRUE(change.overlay);
+	EXPECT_TRUE(change.restartOnly.empty());
+	EXPECT_TRUE(LiveLoaderSettings(LoaderSettings {}, *settings).overlay.pinned);
+	const auto again = ParseLoaderSettings(LoaderSettingsJson(*settings).dump());
+	ASSERT_TRUE(again);
+	EXPECT_TRUE(again->overlay.pinned);
+}

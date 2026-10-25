@@ -137,6 +137,12 @@ const std::array k_Fields {
                            .help = "Install this menu bar when the game starts.",
                            .restartOnly = true,
                            TS4_TOGGLE(overlay.enabled)},
+    Field<LoaderSettings> {.group = "Menu bar",
+                           .section = "overlay",
+                           .key = "pinned",
+                           .label = "Always show",
+                           .help = "Show this menu bar at all times, as if its hotkey pinned it.",
+                           TS4_TOGGLE(overlay.pinned)},
     Field<LoaderSettings> {.group = "Start",
                            .section = "",
                            .key = "liveReload",
@@ -198,7 +204,7 @@ ts4::Result<LoaderSettings> ParseLoaderSettings(std::string_view json)
 	{
 		auto& value = settings.overlay;
 		if (!overlay->is_object() || !ReadField(*overlay, "enabled", value.enabled) ||
-		    !ReadField(*overlay, "fontScale", value.fontScale))
+		    !ReadField(*overlay, "fontScale", value.fontScale) || !ReadField(*overlay, "pinned", value.pinned))
 		{
 			return ts4::MakeError("the object 'overlay' has a field with a wrong type");
 		}
@@ -246,7 +252,10 @@ nlohmann::json LoaderSettingsJson(const LoaderSettings& settings)
 	    {"tickHook", settings.tickHook},
 	    {"liveReload", settings.liveReload},
 	    {"hotkeys", std::move(hotkeys)},
-	    {"overlay", {{"enabled", settings.overlay.enabled}, {"fontScale", settings.overlay.fontScale}}},
+	    {"overlay",
+	     {{"enabled", settings.overlay.enabled},
+	      {"fontScale", settings.overlay.fontScale},
+	      {"pinned", settings.overlay.pinned}}},
 	    {"mods", {{"disabled", settings.mods.disabled}}},
 	    {"modDlls", {{"disabled", settings.modDlls.disabled}}},
 	};
@@ -270,7 +279,7 @@ LoaderSettingsChange CompareLoaderSettings(const LoaderSettings& current, const 
 {
 	LoaderSettingsChange change;
 	change.hotkeys = current.hotkeys != next.hotkeys;
-	change.overlay = current.overlay.fontScale != next.overlay.fontScale;
+	change.overlay = current.overlay.fontScale != next.overlay.fontScale || current.overlay.pinned != next.overlay.pinned;
 	const std::array<std::pair<const char*, bool>, 5> restart {{
 	    {"tickHook", current.tickHook != next.tickHook},
 	    {"liveReload", current.liveReload != next.liveReload},

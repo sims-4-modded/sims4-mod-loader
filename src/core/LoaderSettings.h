@@ -49,6 +49,8 @@ struct LoaderSettings
 	{
 		bool enabled = true;    ///< Install the menu bar. The change works after a restart of the game.
 		double fontScale = 1.0; ///< The size of the text of the menu bar, as a multiple of the default size.
+		/// Show the menu bar at all times, as if the user pinned it with its hotkey. The hotkey still changes the pin.
+		bool pinned = false;
 
 		friend bool operator==(const Overlay&, const Overlay&) = default;
 	} overlay;
