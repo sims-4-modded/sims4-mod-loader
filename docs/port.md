@@ -117,3 +117,17 @@ The keys `objects` and `maps` and the key `mods.map` are not ported.
   `api-ms-win-core-synch-l1-2-0` load at the first call.
 - **Not ported:** the game messages (`GameMessages`), the probe of the menu of the game (`GameMenuProbe`), the crash
   dump writer, the mod zips, the objects and the maps.
+
+### Follow-ups after the first working extender (2026-10-25)
+
+- `Ts4ModApi.h` says that the extender calls `Ts4ModInit` on the main thread. The extender calls it on its start
+  thread, as Masters of Albion does. Move the load of the DLL mods to the first tick, so that the code obeys the
+  interface.
+- The quit hook (`AppInstance::Shutdown`) did not run in a test: each run stopped the process at the main menu. A test
+  must quit through the menu of the game.
+- The menu bar is very small at 5120x1440. Give `overlay.fontScale` a default from the height of the window.
+- The probe of "the game menu is open" is not ported. The menu bar shows when the user pins it (`overlay.pinned`,
+  Ctrl+Shift+F4).
+- Game messages and the crash dump writer are not joined yet; `showMessage` writes only to the log.
+- The bootstrap hook on the tick is a second hook owner until the first tick ends. This is permitted, as for the hooks
+  of the menu bar.
