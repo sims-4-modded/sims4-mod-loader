@@ -33,17 +33,29 @@ add_executable(
   test_GameStart.cpp
   test_HookRules.cpp
   test_HostTable.cpp
+  test_LoaderLog.cpp
   test_LoaderSettings.cpp
   test_ModCatalogue.cpp
   test_ModDllLoader.cpp
   test_ModRegistry.cpp
   test_OverlayMenus.cpp
   test_OverlayRules.cpp
+  test_Proxy.cpp
   test_Sha256.cpp
+  # The log of the extender needs no game, so the tests compile it.
+  ../src/game/loader/LoaderLog.cpp
 )
 target_link_libraries(ts4_loader_tests PRIVATE ts4_loader_core ts4_loader_dlls GTest::gtest_main)
-target_compile_definitions(ts4_loader_tests PRIVATE TS4_TEST_MODS_DIR="${TS4_TEST_MODS_DIR}" WIN32_LEAN_AND_MEAN NOMINMAX)
-add_dependencies(ts4_loader_tests ${_ts4_test_mod_targets})
+target_compile_definitions(
+  ts4_loader_tests
+  PRIVATE TS4_TEST_MODS_DIR="${TS4_TEST_MODS_DIR}"
+          TS4_PROXY_DLL="$<TARGET_FILE:ts4_mod_loader>"
+          TS4_LOADER_VERSION="${PROJECT_VERSION}"
+          WIN32_LEAN_AND_MEAN
+          NOMINMAX
+)
+# The tests of the proxy load the version.dll that the build made.
+add_dependencies(ts4_loader_tests ${_ts4_test_mod_targets} ts4_mod_loader)
 ts4_set_warnings(ts4_loader_tests)
 
 include(GoogleTest)
