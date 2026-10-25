@@ -131,3 +131,11 @@ The keys `objects` and `maps` and the key `mods.map` are not ported.
 - Game messages and the crash dump writer are not joined yet; `showMessage` writes only to the log.
 - The bootstrap hook on the tick is a second hook owner until the first tick ends. This is permitted, as for the hooks
   of the menu bar.
+- **Two threads, not one** (first test of the YouTube TV mod, 2026-10-25). The tick of the extender runs on the main
+  thread of the client: it runs the hook callbacks, the tasks, the menu bar and `RenderFrame`. Game Python runs on
+  another thread: the simulation thread. A call from game Python into a DLL mod comes on that thread. `Ts4ModApi.h`
+  must name the two threads and tell which callbacks run on which, and the native Python module of stage 4 must take
+  this into account (a call from Python posts work to the client thread, or the mod guards its state with a lock).
+- A mod that scans the code of the game after the extender hooked a function finds the jump of the hook, not the
+  original bytes. The extender gives mods the resolved address of a function, or the mods scan in `Ts4ModInit`
+  before the hooks go on.
