@@ -89,27 +89,27 @@ if (WIN32)
   ts4_set_warnings(ts4_loader_overlay)
 endif ()
 
-# The extender: a proxy version.dll in Game\Bin. Each export jumps to the system version.dll. This stage only starts
-# the log of the start in the game process: no hook, no menu bar, no DLL mod.
+# The extender: a proxy winmm.dll in Game\Bin. Each export jumps to the system winmm.dll. tools/proxy_exports.py makes
+# the exports and the stubs from the system DLL.
 enable_language(ASM_MASM)
 add_library(
   ts4_mod_loader SHARED
   src/game/proxy/ProxyStubs.asm
-  src/game/proxy/VersionExports.h
-  src/game/proxy/version.def
+  src/game/proxy/WinmmExports.h
+  src/game/proxy/winmm.def
   src/game/loader/ExeImage.cpp
   src/game/loader/ExeImage.h
   src/game/loader/Loader.cpp
   src/game/loader/LoaderLog.cpp
   src/game/loader/LoaderLog.h
 )
-set_target_properties(ts4_mod_loader PROPERTIES OUTPUT_NAME version)
+set_target_properties(ts4_mod_loader PROPERTIES OUTPUT_NAME winmm)
 target_compile_definitions(
   ts4_mod_loader PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX TS4_LOADER_VERSION="${PROJECT_VERSION}"
 )
 target_include_directories(ts4_mod_loader PRIVATE src)
 target_link_libraries(ts4_mod_loader PRIVATE ts4_loader_core ts4_loader_dlls shell32 ole32 uuid delayimp)
-# The activation wrapper loads version.dll in its stub process too. The DLLs that only the start thread uses load at
+# The activation wrapper can load winmm.dll in its stub process too. The DLLs that only the start thread uses load at
 # the first call, so the proxy adds no DLL to that process.
 target_link_options(ts4_mod_loader PRIVATE /DELAYLOAD:shell32.dll /DELAYLOAD:ole32.dll)
 ts4_set_warnings(ts4_mod_loader)

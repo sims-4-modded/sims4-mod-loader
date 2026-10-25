@@ -2,34 +2,199 @@
 ; Copyright (c) 2026 Sims 4 mods developers
 ; ******************************************************************************
 
-; Each export of the proxy jumps to the same function in the system version.dll.
-; Loader.cpp fills g_versionFunctions in the order of this file (VersionExports.h).
+; Each export of the proxy jumps to the same function in the system winmm.dll.
+; Loader.cpp fills g_winmmFunctions in the order of this file (WinmmExports.h).
+; tools/proxy_exports.py makes this file from the system DLL: do not change it by hand.
 
-EXTERN g_versionFunctions:QWORD
+EXTERN g_winmmFunctions:QWORD
 
 PROXY_STUB MACRO name, index
 Proxy_&name PROC
-    jmp qword ptr [g_versionFunctions + index * 8]
+    jmp qword ptr [g_winmmFunctions + index * 8]
 Proxy_&name ENDP
 ENDM
 
 .code
-PROXY_STUB GetFileVersionInfoA, 0
-PROXY_STUB GetFileVersionInfoByHandle, 1
-PROXY_STUB GetFileVersionInfoExA, 2
-PROXY_STUB GetFileVersionInfoExW, 3
-PROXY_STUB GetFileVersionInfoSizeA, 4
-PROXY_STUB GetFileVersionInfoSizeExA, 5
-PROXY_STUB GetFileVersionInfoSizeExW, 6
-PROXY_STUB GetFileVersionInfoSizeW, 7
-PROXY_STUB GetFileVersionInfoW, 8
-PROXY_STUB VerFindFileA, 9
-PROXY_STUB VerFindFileW, 10
-PROXY_STUB VerInstallFileA, 11
-PROXY_STUB VerInstallFileW, 12
-PROXY_STUB VerLanguageNameA, 13
-PROXY_STUB VerLanguageNameW, 14
-PROXY_STUB VerQueryValueA, 15
-PROXY_STUB VerQueryValueW, 16
+PROXY_STUB Ordinal2, 0
+PROXY_STUB mciExecute, 1
+PROXY_STUB CloseDriver, 2
+PROXY_STUB DefDriverProc, 3
+PROXY_STUB DriverCallback, 4
+PROXY_STUB DrvGetModuleHandle, 5
+PROXY_STUB GetDriverModuleHandle, 6
+PROXY_STUB OpenDriver, 7
+PROXY_STUB PlaySound, 8
+PROXY_STUB PlaySoundA, 9
+PROXY_STUB PlaySoundW, 10
+PROXY_STUB SendDriverMessage, 11
+PROXY_STUB WOWAppExit, 12
+PROXY_STUB auxGetDevCapsA, 13
+PROXY_STUB auxGetDevCapsW, 14
+PROXY_STUB auxGetNumDevs, 15
+PROXY_STUB auxGetVolume, 16
+PROXY_STUB auxOutMessage, 17
+PROXY_STUB auxSetVolume, 18
+PROXY_STUB joyConfigChanged, 19
+PROXY_STUB joyGetDevCapsA, 20
+PROXY_STUB joyGetDevCapsW, 21
+PROXY_STUB joyGetNumDevs, 22
+PROXY_STUB joyGetPos, 23
+PROXY_STUB joyGetPosEx, 24
+PROXY_STUB joyGetThreshold, 25
+PROXY_STUB joyReleaseCapture, 26
+PROXY_STUB joySetCapture, 27
+PROXY_STUB joySetThreshold, 28
+PROXY_STUB mciDriverNotify, 29
+PROXY_STUB mciDriverYield, 30
+PROXY_STUB mciFreeCommandResource, 31
+PROXY_STUB mciGetCreatorTask, 32
+PROXY_STUB mciGetDeviceIDA, 33
+PROXY_STUB mciGetDeviceIDFromElementIDA, 34
+PROXY_STUB mciGetDeviceIDFromElementIDW, 35
+PROXY_STUB mciGetDeviceIDW, 36
+PROXY_STUB mciGetDriverData, 37
+PROXY_STUB mciGetErrorStringA, 38
+PROXY_STUB mciGetErrorStringW, 39
+PROXY_STUB mciGetYieldProc, 40
+PROXY_STUB mciLoadCommandResource, 41
+PROXY_STUB mciSendCommandA, 42
+PROXY_STUB mciSendCommandW, 43
+PROXY_STUB mciSendStringA, 44
+PROXY_STUB mciSendStringW, 45
+PROXY_STUB mciSetDriverData, 46
+PROXY_STUB mciSetYieldProc, 47
+PROXY_STUB midiConnect, 48
+PROXY_STUB midiDisconnect, 49
+PROXY_STUB midiInAddBuffer, 50
+PROXY_STUB midiInClose, 51
+PROXY_STUB midiInGetDevCapsA, 52
+PROXY_STUB midiInGetDevCapsW, 53
+PROXY_STUB midiInGetErrorTextA, 54
+PROXY_STUB midiInGetErrorTextW, 55
+PROXY_STUB midiInGetID, 56
+PROXY_STUB midiInGetNumDevs, 57
+PROXY_STUB midiInMessage, 58
+PROXY_STUB midiInOpen, 59
+PROXY_STUB midiInPrepareHeader, 60
+PROXY_STUB midiInReset, 61
+PROXY_STUB midiInStart, 62
+PROXY_STUB midiInStop, 63
+PROXY_STUB midiInUnprepareHeader, 64
+PROXY_STUB midiOutCacheDrumPatches, 65
+PROXY_STUB midiOutCachePatches, 66
+PROXY_STUB midiOutClose, 67
+PROXY_STUB midiOutGetDevCapsA, 68
+PROXY_STUB midiOutGetDevCapsW, 69
+PROXY_STUB midiOutGetErrorTextA, 70
+PROXY_STUB midiOutGetErrorTextW, 71
+PROXY_STUB midiOutGetID, 72
+PROXY_STUB midiOutGetNumDevs, 73
+PROXY_STUB midiOutGetVolume, 74
+PROXY_STUB midiOutLongMsg, 75
+PROXY_STUB midiOutMessage, 76
+PROXY_STUB midiOutOpen, 77
+PROXY_STUB midiOutPrepareHeader, 78
+PROXY_STUB midiOutReset, 79
+PROXY_STUB midiOutSetVolume, 80
+PROXY_STUB midiOutShortMsg, 81
+PROXY_STUB midiOutUnprepareHeader, 82
+PROXY_STUB midiStreamClose, 83
+PROXY_STUB midiStreamOpen, 84
+PROXY_STUB midiStreamOut, 85
+PROXY_STUB midiStreamPause, 86
+PROXY_STUB midiStreamPosition, 87
+PROXY_STUB midiStreamProperty, 88
+PROXY_STUB midiStreamRestart, 89
+PROXY_STUB midiStreamStop, 90
+PROXY_STUB mixerClose, 91
+PROXY_STUB mixerGetControlDetailsA, 92
+PROXY_STUB mixerGetControlDetailsW, 93
+PROXY_STUB mixerGetDevCapsA, 94
+PROXY_STUB mixerGetDevCapsW, 95
+PROXY_STUB mixerGetID, 96
+PROXY_STUB mixerGetLineControlsA, 97
+PROXY_STUB mixerGetLineControlsW, 98
+PROXY_STUB mixerGetLineInfoA, 99
+PROXY_STUB mixerGetLineInfoW, 100
+PROXY_STUB mixerGetNumDevs, 101
+PROXY_STUB mixerMessage, 102
+PROXY_STUB mixerOpen, 103
+PROXY_STUB mixerSetControlDetails, 104
+PROXY_STUB mmDrvInstall, 105
+PROXY_STUB mmGetCurrentTask, 106
+PROXY_STUB mmTaskBlock, 107
+PROXY_STUB mmTaskCreate, 108
+PROXY_STUB mmTaskSignal, 109
+PROXY_STUB mmTaskYield, 110
+PROXY_STUB mmioAdvance, 111
+PROXY_STUB mmioAscend, 112
+PROXY_STUB mmioClose, 113
+PROXY_STUB mmioCreateChunk, 114
+PROXY_STUB mmioDescend, 115
+PROXY_STUB mmioFlush, 116
+PROXY_STUB mmioGetInfo, 117
+PROXY_STUB mmioInstallIOProcA, 118
+PROXY_STUB mmioInstallIOProcW, 119
+PROXY_STUB mmioOpenA, 120
+PROXY_STUB mmioOpenW, 121
+PROXY_STUB mmioRead, 122
+PROXY_STUB mmioRenameA, 123
+PROXY_STUB mmioRenameW, 124
+PROXY_STUB mmioSeek, 125
+PROXY_STUB mmioSendMessage, 126
+PROXY_STUB mmioSetBuffer, 127
+PROXY_STUB mmioSetInfo, 128
+PROXY_STUB mmioStringToFOURCCA, 129
+PROXY_STUB mmioStringToFOURCCW, 130
+PROXY_STUB mmioWrite, 131
+PROXY_STUB mmsystemGetVersion, 132
+PROXY_STUB sndPlaySoundA, 133
+PROXY_STUB sndPlaySoundW, 134
+PROXY_STUB timeBeginPeriod, 135
+PROXY_STUB timeEndPeriod, 136
+PROXY_STUB timeGetDevCaps, 137
+PROXY_STUB timeGetSystemTime, 138
+PROXY_STUB timeGetTime, 139
+PROXY_STUB timeKillEvent, 140
+PROXY_STUB timeSetEvent, 141
+PROXY_STUB waveInAddBuffer, 142
+PROXY_STUB waveInClose, 143
+PROXY_STUB waveInGetDevCapsA, 144
+PROXY_STUB waveInGetDevCapsW, 145
+PROXY_STUB waveInGetErrorTextA, 146
+PROXY_STUB waveInGetErrorTextW, 147
+PROXY_STUB waveInGetID, 148
+PROXY_STUB waveInGetNumDevs, 149
+PROXY_STUB waveInGetPosition, 150
+PROXY_STUB waveInMessage, 151
+PROXY_STUB waveInOpen, 152
+PROXY_STUB waveInPrepareHeader, 153
+PROXY_STUB waveInReset, 154
+PROXY_STUB waveInStart, 155
+PROXY_STUB waveInStop, 156
+PROXY_STUB waveInUnprepareHeader, 157
+PROXY_STUB waveOutBreakLoop, 158
+PROXY_STUB waveOutClose, 159
+PROXY_STUB waveOutGetDevCapsA, 160
+PROXY_STUB waveOutGetDevCapsW, 161
+PROXY_STUB waveOutGetErrorTextA, 162
+PROXY_STUB waveOutGetErrorTextW, 163
+PROXY_STUB waveOutGetID, 164
+PROXY_STUB waveOutGetNumDevs, 165
+PROXY_STUB waveOutGetPitch, 166
+PROXY_STUB waveOutGetPlaybackRate, 167
+PROXY_STUB waveOutGetPosition, 168
+PROXY_STUB waveOutGetVolume, 169
+PROXY_STUB waveOutMessage, 170
+PROXY_STUB waveOutOpen, 171
+PROXY_STUB waveOutPause, 172
+PROXY_STUB waveOutPrepareHeader, 173
+PROXY_STUB waveOutReset, 174
+PROXY_STUB waveOutRestart, 175
+PROXY_STUB waveOutSetPitch, 176
+PROXY_STUB waveOutSetPlaybackRate, 177
+PROXY_STUB waveOutSetVolume, 178
+PROXY_STUB waveOutUnprepareHeader, 179
+PROXY_STUB waveOutWrite, 180
 
 END

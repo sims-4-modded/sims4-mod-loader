@@ -2,11 +2,11 @@
  * Copyright (c) 2026 Sims 4 mods developers
  *****************************************************************************/
 
-// The start of the extender. The game loads the proxy version.dll from Game\Bin. DllMain loads the system
-// version.dll, fills the table of the proxy stubs and, only in TS4_x64.exe, starts one thread. That thread waits
+// The start of the extender. The game loads the proxy winmm.dll from Game\Bin. DllMain loads the system
+// winmm.dll, fills the table of the proxy stubs and, only in TS4_x64.exe, starts one thread. That thread waits
 // until the activation wrapper decrypted the program, and then writes the log of the start.
 //
-// The activation wrapper starts TS4_x64.exe two times. The first process (the stub) loads version.dll before the
+// The activation wrapper starts TS4_x64.exe two times. The first process (the stub) can load winmm.dll before the
 // decryption and stops after a short time. The EA app then starts the game process. In the stub, the thread writes
 // one line and waits; when the stub stops, DllMain writes one more line. The proxy does nothing else there.
 //
@@ -40,14 +40,14 @@
 
 #include "game/loader/ExeImage.h"
 #include "game/loader/LoaderLog.h"
-#include "game/proxy/VersionExports.h"
+#include "game/proxy/WinmmExports.h"
 
-// The proxy stubs (ProxyStubs.asm) jump through this table to the functions of the system version.dll. It is the
+// The proxy stubs (ProxyStubs.asm) jump through this table to the functions of the system winmm.dll. It is the
 // only global table, because the stubs are assembly and cannot get a pointer in another way. DllMain fills it before
 // any call can reach a stub, and nothing changes it after that.
-extern "C" void* g_versionFunctions[ts4_mod::proxy::k_VersionExports.size()] = {};
+extern "C" void* g_winmmFunctions[ts4_mod::proxy::k_WinmmExports.size()] = {};
 
-/// The install tool and game_builds.py find this export name in the file to know that a version.dll is the extender.
+/// The install tool and game_builds.py find this export name in the file to know that a winmm.dll is the extender.
 extern "C" const char* Ts4ModLoaderVersion()
 {
 	return TS4_LOADER_VERSION;
@@ -97,6 +97,9 @@ struct ProxyState
 	std::wstring logPath;
 	std::string exitLine;
 	std::atomic<bool> exitLineReady {false};
+	/// The path of this DLL and the age of the process when Windows loaded it. DllMain sets them.
+	std::filesystem::path dllPath;
+	std::chrono::milliseconds loadAge {0};
 };
 
 /// The one state object of the proxy. See `DllMain` for its lifetime.
@@ -107,9 +110,10 @@ struct ModuleFree
 	void operator()(HMODULE module) const { FreeLibrary(module); }
 };
 
-/// Load the system version.dll by its full path and fill the table of the proxy stubs. The system DLL stays loaded
-/// until the process stops, because the stubs jump into it.
-[[nodiscard]] bool LoadSystemVersion()
+/// Load the system winmm.dll by its full path and fill the table of the proxy stubs. The system DLL stays loaded
+/// until the process stops, because the stubs jump into it. A named export is found by its name, and the export with
+/// no name by its ordinal.
+[[nodiscard]] bool LoadSystemWinmm()
 {
 	std::array<wchar_t, MAX_PATH> folder {};
 	const auto length = GetSystemDirectoryW(folder.data(), static_cast<UINT>(folder.size()));
@@ -117,16 +121,18 @@ struct ModuleFree
 	{
 		return false;
 	}
-	const auto path = std::wstring(folder.data(), length) + L"\\version.dll";
+	const auto path = std::wstring(folder.data(), length) + L"\\winmm.dll";
 	std::unique_ptr<std::remove_pointer_t<HMODULE>, ModuleFree> module(LoadLibraryW(path.c_str()));
 	if (!module)
 	{
 		return false;
 	}
-	for (std::size_t i = 0; i < proxy::k_VersionExports.size(); ++i)
+	for (std::size_t i = 0; i < proxy::k_WinmmExports.size(); ++i)
 	{
-		g_versionFunctions[i] = reinterpret_cast<void*>(GetProcAddress(module.get(), proxy::k_VersionExports[i]));
-		if (g_versionFunctions[i] == nullptr)
+		const auto& entry = proxy::k_WinmmExports[i];
+		const char* name = entry.name != nullptr ? entry.name : MAKEINTRESOURCEA(entry.ordinal);
+		g_winmmFunctions[i] = reinterpret_cast<void*>(GetProcAddress(module.get(), name));
+		if (g_winmmFunctions[i] == nullptr)
 		{
 			return false;
 		}
@@ -368,6 +374,9 @@ void Start(ProxyState& state)
 	{
 		(void)watch.Add(*entropy);
 	}
+	log.Info("proxy: Windows loaded {} {} ms after the start of the process {} ({}); .text entropy {:.3f} now ({} ms)",
+	         Utf8(state.dllPath), state.loadAge.count(), GetCurrentProcessId(), Utf8(program.filename()),
+	         watch.Last().value_or(0.0), ProcessAge().count());
 	if (watch.State() == ImageState::Encrypted)
 	{
 		log.Info("{} loaded the proxy before the decryption (.text entropy {:.3f}, {} ms after the start of the "
@@ -437,6 +446,10 @@ void StartInGameProcess(HINSTANCE instance)
 		return;
 	}
 	s_state = std::make_unique<ProxyState>();
+	s_state->loadAge = ProcessAge();
+	std::array<wchar_t, MAX_PATH> dll {};
+	const auto length = GetModuleFileNameW(instance, dll.data(), static_cast<DWORD>(dll.size()));
+	s_state->dllPath = std::filesystem::path(std::wstring(dll.data(), length));
 	const std::unique_ptr<void, HandleClose> thread(CreateThread(nullptr, 0, StartThread, s_state.get(), 0, nullptr));
 	if (!thread)
 	{
@@ -481,7 +494,7 @@ BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 		return TRUE;
 	}
 	DisableThreadLibraryCalls(instance);
-	if (!ts4_mod::loader::LoadSystemVersion())
+	if (!ts4_mod::loader::LoadSystemWinmm())
 	{
 		return FALSE;
 	}

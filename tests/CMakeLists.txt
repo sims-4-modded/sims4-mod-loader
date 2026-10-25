@@ -54,7 +54,7 @@ target_compile_definitions(
           WIN32_LEAN_AND_MEAN
           NOMINMAX
 )
-# The tests of the proxy load the version.dll that the build made.
+# The tests of the proxy load the winmm.dll that the build made.
 add_dependencies(ts4_loader_tests ${_ts4_test_mod_targets} ts4_mod_loader)
 ts4_set_warnings(ts4_loader_tests)
 
