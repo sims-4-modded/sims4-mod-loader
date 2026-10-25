@@ -14,7 +14,7 @@ are different. This file gives each part and its state.
 | `common/src/mod_game` (IL2CPP, managed objects, method hooks, hotkey input, game messages, crash dumps) | Hooks by signature (MinHook), the hotkey input, the game messages, crash dumps, and the Python 3.7 C API of the game. IL2CPP and managed objects go. | Stage 2 |
 | `mod_loader/src/core` (host table, loader settings, mod registry, mod catalogue, hook rules, overlay rules) | The same (`ts4_loader_core`), with the changes in "Stage 2: the core" below. | Stage 2, done (branch `loader/core`) |
 | `mod_loader/src/dlls/ModDllLoader` (the load and the checks of the mod DLLs) | The same (`ts4_loader_dlls`): the exports, the interface version, the ids, the guard after an access violation, the SHA-256 checksum of each DLL, the list of DLLs for the start-up guard. | Stage 2, done (branch `loader/core`) |
-| `mod_loader/src/game/overlay` (DXGI `Present` hook, Dear ImGui menu bar) | The same on the D3D11 swap chain of the game. | Stage 3 |
+| `mod_loader/src/game/overlay` (DXGI `Present` hook, Dear ImGui menu bar) | The same on the D3D11 swap chain of the game (`ts4_loader_overlay`, `src/game/overlay`; the menus from the registry in `core/OverlayMenus`). D3D12 is not ported. The window is found by the process and the title. | Stage 3, done (branch `loader/overlay`); the game test comes with the extender |
 | `mod_loader/src/game/proxy` (proxy `version.dll`) | The same proxy `version.dll` (`docs/research/loader/load.md`). | Stage 3; a game run must prove it |
 | `mod_loader/src/game/loader/Loader.cpp` | The start of the extender: after the activation wrapper decrypts the exe, find the signatures, start the hooks, load the mods. | Stage 3 |
 | Mod zips, map overrides, custom objects, packs, the merges, `unitymesh` | Not ported. These are Unity data of Masters of Albion. Packages and tuning of The Sims 4 come later, if a mod needs them. | Not ported |
@@ -88,3 +88,8 @@ The keys `objects` and `maps` and the key `mods.map` are not ported.
 - The hook manager of common calls callbacks only on the main thread. The extender makes it on the main thread of
   the game, or gives it `mainThreadId`. Callbacks read up to 4 integer or pointer parameters and an integer result;
   a function with a float parameter or result needs an assembly thunk, later, if a mod needs it.
+- The overlay hooks `Present` and `ResizeBuffers` with its own MinHook hooks, not with the hook manager: the game can
+  call `Present` on a thread that is not the main thread, and the hooks must work with the hooks of the EA overlay and
+  the Discord overlay. The slots of `IDXGISwapChain` are fixed by the COM interface, not by the game, so they are
+  permitted in code.
+- The menu bar shows only when the user pins it. The extender adds the action `toggleOverlay` with a default hotkey.
