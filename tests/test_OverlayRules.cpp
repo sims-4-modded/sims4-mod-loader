@@ -2,6 +2,8 @@
  * Copyright (c) 2026 Sims 4 mods developers
  *****************************************************************************/
 
+#include <limits>
+
 #include <core/OverlayRules.h>
 #include <gtest/gtest.h>
 
@@ -113,4 +115,31 @@ TEST(OverlayInput, OnlyTheGameSetsTheCursor)
 	// ImGui does not get the message, and the game gets it, also while the mouse is on the bar.
 	EXPECT_EQ(DecideInput(InputKind::Cursor, 0, true, true, true), (InputDecision {}));
 	EXPECT_EQ(DecideInput(InputKind::Cursor, 0, false, false, false), (InputDecision {}));
+}
+
+TEST(OverlayWindow, TheTitleMustBeTheSameWhenTheBarHasATitle)
+{
+	EXPECT_TRUE(WindowTitleMatches(L"The Sims™ 4", L"The Sims™ 4"));
+	EXPECT_FALSE(WindowTitleMatches(L"The Sims 4", L"The Sims™ 4"));
+	EXPECT_FALSE(WindowTitleMatches(L"The Sims™ 4 - Debug", L"The Sims™ 4"));
+	EXPECT_FALSE(WindowTitleMatches(L"", L"The Sims™ 4"));
+	EXPECT_TRUE(WindowTitleMatches(L"Any window", L""));
+}
+
+TEST(OverlayScale, TheScaleIsTheFontScaleMultipliedByTheDpiScale)
+{
+	EXPECT_FLOAT_EQ(StyleScale(1.0, 1.0f), 1.0f);
+	EXPECT_FLOAT_EQ(StyleScale(1.5, 1.0f), 1.5f);
+	EXPECT_FLOAT_EQ(StyleScale(1.5, 2.0f), 3.0f);
+	// A DPI scale that the window does not give counts as 1.
+	EXPECT_FLOAT_EQ(StyleScale(2.0, 0.0f), 2.0f);
+	EXPECT_FLOAT_EQ(StyleScale(2.0, -1.0f), 2.0f);
+}
+
+TEST(OverlayScale, TheScaleStaysInItsLimits)
+{
+	EXPECT_FLOAT_EQ(StyleScale(0.1, 1.0f), k_MinStyleScale);
+	EXPECT_FLOAT_EQ(StyleScale(3.0, 4.0f), k_MaxStyleScale);
+	EXPECT_FLOAT_EQ(StyleScale(std::numeric_limits<double>::quiet_NaN(), 1.0f), k_MinStyleScale);
+	EXPECT_FLOAT_EQ(StyleScale(std::numeric_limits<double>::infinity(), 1.0f), k_MaxStyleScale);
 }

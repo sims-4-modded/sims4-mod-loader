@@ -36,6 +36,7 @@ add_executable(
   test_ModCatalogue.cpp
   test_ModDllLoader.cpp
   test_ModRegistry.cpp
+  test_OverlayMenus.cpp
   test_OverlayRules.cpp
   test_Sha256.cpp
 )

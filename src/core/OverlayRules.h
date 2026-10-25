@@ -6,6 +6,9 @@
 
 #include <cstdint>
 
+#include <algorithm>
+#include <string_view>
+
 namespace ts4_mod::overlay
 {
 
@@ -191,6 +194,31 @@ struct InputDecision
 		break;
 	}
 	return decision;
+}
+
+/// True if the title of a window is the title of the game window. An empty `expected` accepts each title. The class of
+/// the game window changes at each start, so the menu bar finds the window by its process and its title.
+[[nodiscard]] constexpr bool WindowTitleMatches(std::wstring_view title, std::wstring_view expected)
+{
+	return expected.empty() || title == expected;
+}
+
+/// The smallest and the largest scale of the menu bar.
+inline constexpr float k_MinStyleScale = 0.5f;
+inline constexpr float k_MaxStyleScale = 6.0f;
+
+/// The scale of the text and of the sizes of the menu bar: `overlay.fontScale` of the settings, multiplied by the DPI
+/// scale of the window. A DPI scale that is not more than 0 counts as 1. The result is in the limits above.
+[[nodiscard]] constexpr float StyleScale(double fontScale, float dpiScale)
+{
+	const float dpi = dpiScale > 0.0f ? dpiScale : 1.0f;
+	const float scale = static_cast<float>(fontScale) * dpi;
+	// A value that is not a number fails each comparison. It becomes the smallest scale.
+	if (!(scale >= k_MinStyleScale))
+	{
+		return k_MinStyleScale;
+	}
+	return std::min(scale, k_MaxStyleScale);
 }
 
 } // namespace ts4_mod::overlay
