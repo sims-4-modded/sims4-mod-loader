@@ -30,9 +30,12 @@ DLLs of that table that are not KnownDLLs (42 entries in `\KnownDlls`), so Windo
 - No ASLR: `TS4_x64.exe` has the fixed base `0x140000000`, `Simulation_x64.dll` `0xF000000`, `python37_x64.dll`
   `0x1E000000`. The code still uses signatures, never addresses.
 
-## The choice: a proxy `version.dll`
+## The choice: a proxy `version.dll`, then `winmm.dll`
 
-1. **`version.dll`** (the choice; the run with the proxy below shows that the game never loads it). The decrypted exe and `python37_x64.dll` import it, so it loads before the D3D11
+The game never loads a proxy `version.dll` (run of stage 3a below). The extender is now a proxy `winmm.dll` (stage 3b
+below), which the game process loads from `Game\Bin` after the decryption.
+
+1. **`version.dll`** (the first choice; the run with the proxy below shows that the game never loads it). The decrypted exe and `python37_x64.dll` import it, so it loads before the D3D11
    device and before Python. It has 17 exports by name. The Masters of Albion loader uses the same mechanism, so the
    proxy stubs port directly.
 2. `winmm.dll`: the same early time, but 181 exports.
@@ -107,3 +110,69 @@ One start with `install.py install` and `install.py launch`, to the main menu, n
   a new install can remove our DLL. `install.py status` must show it.
 - The EA app has updates on (`autoUpdateEnabled="1"`, `treatUpdatesAsMandatory="1"`) and a pending update of itself.
   An update of the game changes the version (skill `ts4-game-builds`).
+
+## The game runs with the proxy winmm.dll (2026-10-25, stage 3b)
+
+The user approved `Game\Bin\winmm.dll`. The proxy forwards all 181 exports of the System32 `winmm.dll` (ordinal 2 has
+no name), made by `tools/proxy_exports.py` from the export directory of the system DLL; a test compares the names and
+the ordinals of the build with the system DLL. Three starts to the main menu, no save. Output:
+`D:\sims_4\runs\2026-10-25-loader-winmm\run1`, `run2`, `run3`.
+
+### Run 1: the load (passive proxy)
+
+- **The game process loads our DLL.** `proxy: Windows loaded F:\Origin Games\The Sims 4\Game\Bin\WINMM.dll 602 ms after
+  the start of the process 33016 (TS4_x64.exe); .text entropy 6.481 now`. The module list at the main menu has both
+  `Game\Bin\WINMM.dll` (ours) and `C:\WINDOWS\system32\winmm.dll` (the real one, loaded by the proxy).
+- **The load comes after the decryption.** The first sample of the `.text` entropy in our start thread is already 6.481
+  (encrypted: 8.0). So the exe loads `WINMM.dll` when the activation wrapper resolves the real import table.
+- **The stub process does not load it.** No line of the stub process (the first `TS4_x64.exe`) is in `loader.log`.
+- `Simulation_x64.dll` and `python37_x64.dll` loaded approximately 4.9 s after the start of the process.
+
+### The tick of the main thread (tree `TS4_x64_1.128.90.1030`)
+
+| RVA | Proposed name | What |
+|---|---|---|
+| `0x0006A290` | `ClientMain` | Makes the `AppInstance`, initializes it, runs the main loop, then the shutdown. |
+| `0x0006E4C0` | `AppInstance::Run` | The main loop: window messages, the game clock (`DAT_02921820`), the frame, then `0x01637D20`. |
+| `0x01637D20` | `ClientBase::ServiceManager::UpdateServices` | Calls `vfunc_9` (Update) of each enabled client service with the clock. 4 integer parameters: the manager, the clock, two flags. **The tick of the extender.** |
+| `0x0006E080` | `AppInstance::Shutdown` | The first step of the shutdown after the main loop. 1 parameter. **The quit hook of the extender.** |
+| `0x000E66B0` | `ClientHostedGameService::vfunc_9` | A service Update: calls `0x01767D90`, which calls vfunc 3 of the simulation server object that `Simulation_x64.dll` `dllInit` returns. Game Python `c_api_server_tick` (`simulation/areaserver.py`) is index 3 of the callbacks that `Simulation_x64` `0x0006F850` binds. |
+| `0x01765940` | `HostedAreaServer::LoadSimulation` | Loads `Simulation_x64.dll` and gets `dllInit`, `dllShutdown`, ... |
+
+The update of the services runs one time in each frame of the main loop, and also from `AppInstance::vfunc_1`
+(flags 1, 0) and the shutdown (flags 1, 0). The signatures (`src/game/loader/TickHook.h`) come from `ghcat.py sig`.
+
+**The thread proof (Python-free).** The extender records, with the DLL notification of Windows
+(`LdrRegisterDllNotification`), the thread that loads `Simulation_x64.dll`; that thread runs `HostedAreaServer`, which
+calls `dllInit`, and the interpreter of the game Python starts there. The tick logs its thread every 600 calls. Run 2
+and run 3: `tick: call 600 on thread 45008; Simulation_x64.dll loaded on thread 45008 at tick count 36028328 (the same
+thread)`, every line from call 1 to call 6000. The static chain above (service update, then the hosted game service,
+then the simulation server tick) shows that the game Python tick runs inside this call on the same thread.
+Approximately 180 ticks in each second at the main menu.
+
+### The start of the extender on the main thread
+
+The hook manager of common must start on the main thread, which the extender does not know before the first tick.
+Thus the start thread puts a one-time bootstrap hook (own MinHook) on the service update. Its first call, after the
+original function, makes the hook manager on that thread, hooks the shutdown, puts the hooks of the DLL mods on their
+functions (it waits until `Simulation_x64.dll` loads if a mod needs it), and then removes itself. The hook manager then
+puts its own hook on the same function, and runs the work of each tick from it. Run 3:
+`tick: the first tick runs on thread 48384`, `hook: installed on the update of the client services`,
+`tick: the hook manager runs the tick from now on (after 1 ticks of the bootstrap hook)`.
+
+### The swap chain: the game presents with Present1
+
+Run 2 (hooks on `Present` and `ResizeBuffers` only): no `Present` call came through the hooks, and the menu bar did not
+show. A read of the game memory at the main menu showed that `DiscordHook64.dll` hooks `Present`, `ResizeBuffers`,
+`Present1`, `ResizeBuffers1` and three more functions of the `IDXGISwapChain` vtable in `dxgi.dll` (it puts its jump on
+top of ours, and its trampoline calls our jump). The game presents with `IDXGISwapChain1::Present1`. With hooks on
+`Present1` (slot 22) and `ResizeBuffers1` (slot 39) too, run 3 logged
+`menu bar: the first Present came through the hook on thread 33668` (the render thread), and the menu bar showed with
+the hotkey. The EA overlay (`IGO64.dll`) is loaded at the install of the menu bar; `DiscordHook64.dll` loads later and
+hooks on top of ours (one warning line for each function); no error.
+
+### Open points
+
+- The quit hook was not seen in a run: each run stopped the process at the main menu, and `WM_CLOSE` does not quit the
+  game from the main menu.
+- The DLL mods start on the start thread (as in Masters of Albion), not on the main thread.
