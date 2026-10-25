@@ -47,3 +47,9 @@ ts4_set_warnings(ts4_loader_tests)
 
 include(GoogleTest)
 gtest_discover_tests(ts4_loader_tests DISCOVERY_MODE PRE_TEST)
+
+# A small Direct3D 11 window that draws the menu bar with a fake registry. It is not a test of CTest, because it needs
+# a GPU (or WARP) and a desktop. Start it by hand: ts4_overlay_app --seconds 10.
+if (WIN32)
+  add_subdirectory(overlay_app)
+endif ()
