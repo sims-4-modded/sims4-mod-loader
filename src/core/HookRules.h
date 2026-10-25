@@ -12,6 +12,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <common/Result.h>
 
@@ -60,6 +61,31 @@ struct FunctionTarget
 /// `existing`, for the error.
 [[nodiscard]] ts4::Result<void> CheckSameFunction(const FunctionTarget& existing, const FunctionTarget& next,
                                                   std::string_view owner);
+
+/// A native function after the scan of its module: the target and the address that its signature found. An address of
+/// 0 tells that the scan found no single match.
+struct ResolvedFunction
+{
+	FunctionTarget target;
+	std::uintptr_t address = 0;
+};
+
+/// One hook on one address, with the targets whose signatures found that address. Two signatures can find the same
+/// function, so the extender joins their callbacks into one hook.
+struct JoinedHook
+{
+	std::uintptr_t address = 0;
+	std::uint32_t parameterCount = 0;
+	/// The targets in the order of their first callback.
+	std::vector<FunctionTarget> targets;
+	/// Why the extender puts no hook on this address, or empty. Then no callback of the targets runs.
+	std::string error;
+};
+
+/// Join the targets that resolve to one address into one hook, in the order of the first target of each address. The
+/// join fails if the targets of one address ask for different numbers of parameters. A target with no address gives
+/// no hook.
+[[nodiscard]] std::vector<JoinedHook> JoinResolvedFunctions(std::span<const ResolvedFunction> functions);
 
 } // namespace ts4_mod::loader
 

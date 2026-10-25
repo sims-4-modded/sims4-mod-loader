@@ -2,6 +2,7 @@
  * Copyright (c) 2026 Sims 4 mods developers
  *****************************************************************************/
 
+#include <algorithm>
 #include <array>
 #include <format>
 
@@ -75,6 +76,35 @@ ts4::Result<void> CheckSameFunction(const FunctionTarget& existing, const Functi
 	}
 	return ts4::MakeError("{} has a hook of {} with {} parameters as '{}'; the callback asks for {} parameters",
 	                      next.key.Text(), owner, existing.parameterCount, existing.name, next.parameterCount);
+}
+
+std::vector<JoinedHook> JoinResolvedFunctions(std::span<const ResolvedFunction> functions)
+{
+	std::vector<JoinedHook> hooks;
+	for (const auto& function : functions)
+	{
+		if (function.address == 0)
+		{
+			continue;
+		}
+		auto hook = std::ranges::find(hooks, function.address, &JoinedHook::address);
+		if (hook == hooks.end())
+		{
+			hooks.push_back(JoinedHook {.address = function.address,
+			                            .parameterCount = function.target.parameterCount,
+			                            .targets = {function.target},
+			                            .error = {}});
+			continue;
+		}
+		if (hook->parameterCount != function.target.parameterCount && hook->error.empty())
+		{
+			hook->error =
+			    std::format("{} and {} find the same function with {} and {} parameters", hook->targets.front().key.Text(),
+			                function.target.key.Text(), hook->parameterCount, function.target.parameterCount);
+		}
+		hook->targets.push_back(function.target);
+	}
+	return hooks;
 }
 
 } // namespace ts4_mod::loader
