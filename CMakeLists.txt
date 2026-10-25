@@ -99,19 +99,34 @@ add_library(
   src/game/proxy/winmm.def
   src/game/loader/ExeImage.cpp
   src/game/loader/ExeImage.h
+  src/game/loader/Extender.cpp
+  src/game/loader/Extender.h
   src/game/loader/Loader.cpp
   src/game/loader/LoaderLog.cpp
   src/game/loader/LoaderLog.h
+  src/game/loader/TickHook.cpp
+  src/game/loader/TickHook.h
 )
 set_target_properties(ts4_mod_loader PROPERTIES OUTPUT_NAME winmm)
 target_compile_definitions(
   ts4_mod_loader PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX TS4_LOADER_VERSION="${PROJECT_VERSION}"
 )
 target_include_directories(ts4_mod_loader PRIVATE src)
-target_link_libraries(ts4_mod_loader PRIVATE ts4_loader_core ts4_loader_dlls shell32 ole32 uuid delayimp)
-# The activation wrapper can load winmm.dll in its stub process too. The DLLs that only the start thread uses load at
-# the first call, so the proxy adds no DLL to that process.
-target_link_options(ts4_mod_loader PRIVATE /DELAYLOAD:shell32.dll /DELAYLOAD:ole32.dll)
+target_link_libraries(
+  ts4_mod_loader PRIVATE ts4_loader_core ts4_loader_dlls ts4_loader_overlay ts4_mod_game ts4_minhook shell32 ole32 uuid
+                         delayimp
+)
+# The activation wrapper can load winmm.dll in its stub process too. Each DLL other than KERNEL32 loads at the first
+# call, so the proxy adds no DLL to a process where the extender does not start.
+target_link_options(
+  ts4_mod_loader
+  PRIVATE
+  /DELAYLOAD:shell32.dll
+  /DELAYLOAD:ole32.dll
+  /DELAYLOAD:user32.dll
+  /DELAYLOAD:gdi32.dll
+  /DELAYLOAD:api-ms-win-core-synch-l1-2-0.dll
+)
 ts4_set_warnings(ts4_mod_loader)
 
 if (TS4_LOADER_BUILD_TESTS)

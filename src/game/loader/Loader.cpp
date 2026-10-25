@@ -4,13 +4,12 @@
 
 // The start of the extender. The game loads the proxy winmm.dll from Game\Bin. DllMain loads the system
 // winmm.dll, fills the table of the proxy stubs and, only in TS4_x64.exe, starts one thread. That thread waits
-// until the activation wrapper decrypted the program, and then writes the log of the start.
+// until the activation wrapper decrypted the program, writes the log of the start and starts the extender
+// (Extender.cpp).
 //
 // The activation wrapper starts TS4_x64.exe two times. The first process (the stub) can load winmm.dll before the
 // decryption and stops after a short time. The EA app then starts the game process. In the stub, the thread writes
 // one line and waits; when the stub stops, DllMain writes one more line. The proxy does nothing else there.
-//
-// This stage installs no hook and loads no DLL mod. It lists the DLL mods with their checksums.
 
 #include <cstdlib>
 
@@ -28,17 +27,14 @@
 #include <vector>
 
 #include <core/GameStart.h>
-#include <core/ModCatalogue.h>
-#include <core/Sha256.h>
-#include <dlls/ModDllLoader.h>
 #include <mod_core/Folders.h>
 #include <mod_core/GameVersion.h>
 #include <mod_core/SettingsFile.h>
-#include <mod_core/StartupGuard.h>
 #include <shlobj.h>
 #include <windows.h>
 
 #include "game/loader/ExeImage.h"
+#include "game/loader/Extender.h"
 #include "game/loader/LoaderLog.h"
 #include "game/proxy/WinmmExports.h"
 
@@ -65,12 +61,6 @@ using Milliseconds = std::chrono::milliseconds;
 constexpr auto k_DecryptTimeout = std::chrono::minutes(5);
 /// The time between two samples of the entropy of the code section.
 constexpr auto k_DecryptPollInterval = Milliseconds(50);
-/// The longest time that the start thread monitors the load of the game modules after the decryption.
-constexpr auto k_ModuleWatchTime = std::chrono::minutes(3);
-/// The time between two checks of the game modules.
-constexpr auto k_ModulePollInterval = Milliseconds(100);
-/// The time after the load of the Python DLL after which this stage calls the start stable.
-constexpr auto k_StableTime = std::chrono::seconds(30);
 /// The name of the log file of the extender in the folder of the log files.
 constexpr std::wstring_view k_LogFileName = L"loader.log";
 /// The game modules that the log monitors.
@@ -219,113 +209,13 @@ struct ModuleFree
 	                         : std::format("loaded at 0x{:x}", reinterpret_cast<std::uintptr_t>(module));
 }
 
-/// Read the marker of the last start and write the marker of this start. This stage uses no feature that the guard
-/// turns off, so the marker only tells the next start if this start did not complete.
-[[nodiscard]] bool BeginStartupGuard(LoaderLog& log, const ModFolders& folders, const std::string& gameVersion)
-{
-	const auto decision = DecideStartup(ReadTextFile(folders.startupMarker), {});
-	if (decision.lastStartFailed)
-	{
-		if (const auto& last = decision.lastStart)
-		{
-			log.Info("start-up: the last start did not complete: process {}, extender {}, game {}, started {}, stage '{}'",
-			         last->processId, last->version, last->gameVersion, last->startedAt, last->stage);
-		}
-		else
-		{
-			log.Info("start-up: the marker of the last start is not correct: {}", decision.markerError);
-		}
-	}
-	else
-	{
-		log.Info("start-up: no marker of the last start: the last start completed");
-	}
-	const auto now = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
-	const StartupMarker marker {.processId = static_cast<std::uint32_t>(GetCurrentProcessId()),
-	                            .version = TS4_LOADER_VERSION,
-	                            .gameVersion = gameVersion,
-	                            .startedAt = std::format("{:%Y-%m-%d %H:%M:%S}", now),
-	                            .stage = "proxy",
-	                            .features = {}};
-	if (auto written = WriteTextFileAtomically(folders.startupMarker, FormatStartupMarker(marker)); !written)
-	{
-		log.Info("start-up: the extender cannot write the marker {}: {}", Utf8(folders.startupMarker),
-		         written.GetError().message);
-		return false;
-	}
-	log.Info("start-up: the marker {} stays until the start is stable", Utf8(folders.startupMarker));
-	return true;
-}
-
-/// List the DLL mods with their checksums. This stage does not load them.
-void ListModDlls(LoaderLog& log, const ModFolders& folders)
-{
-	const auto folder = mods::ModDllFolder(folders.settingsFolder);
-	std::error_code error;
-	if (!std::filesystem::is_directory(folder, error))
-	{
-		log.Info("mod DLLs: the folder {} does not exist", Utf8(folder));
-		return;
-	}
-	const auto files = FindModDlls(folder);
-	log.Info("mod DLLs: {} DLLs in {}; this stage does not load them", files.size(), Utf8(folder));
-	for (const auto& file : files)
-	{
-		const auto sha = Sha256OfFile(file);
-		log.Info("mod DLLs:   {} sha256 {}", Utf8(file.filename()), sha ? *sha : sha.GetError().message);
-	}
-}
-
-/// Monitor the load of the game modules, and remove the marker when the start is stable.
-void WatchGameModules(LoaderLog& log, const ModFolders& folders, bool markerWritten)
-{
-	std::array<bool, k_GameModules.size()> loaded {};
-	std::optional<Clock::time_point> pythonLoaded;
-	const auto deadline = Clock::now() + k_ModuleWatchTime;
-	while (Clock::now() < deadline)
-	{
-		for (std::size_t i = 0; i < k_GameModules.size(); ++i)
-		{
-			if (!loaded[i] && GetModuleHandleW(k_GameModules[i]) != nullptr)
-			{
-				loaded[i] = true;
-				log.Info("modules: {} {}, {} ms after the start of the process", Utf8(std::filesystem::path(k_GameModules[i])),
-				         ModuleText(k_GameModules[i]), ProcessAge().count());
-			}
-		}
-		if (loaded.back() && !pythonLoaded)
-		{
-			pythonLoaded = Clock::now();
-		}
-		if (pythonLoaded && Clock::now() - *pythonLoaded >= k_StableTime)
-		{
-			break;
-		}
-		std::this_thread::sleep_for(k_ModulePollInterval);
-	}
-	if (!pythonLoaded)
-	{
-		log.Info("modules: python37_x64.dll did not load in {} s; the marker stays",
-		         std::chrono::duration_cast<std::chrono::seconds>(k_ModuleWatchTime).count());
-		return;
-	}
-	if (markerWritten)
-	{
-		std::error_code error;
-		std::filesystem::remove(folders.startupMarker, error);
-		log.Info("start-up: stable {} s after the load of python37_x64.dll; {}",
-		         std::chrono::duration_cast<std::chrono::seconds>(k_StableTime).count(),
-		         error ? std::format("the extender cannot remove the marker: {}", error.message())
-		               : std::string("the extender removed the marker"));
-	}
-}
-
-/// The start of the extender after the decryption. This stage writes the log only.
-void StartExtender(LoaderLog& log, const ModFolders& folders, ExeImage& image, const DecryptionWatch& watch,
-                   Milliseconds waited)
+/// The start of the extender after the decryption.
+void StartAfterDecryption(LoaderLog& log, const ModFolders& folders, ExeImage& image, const DecryptionWatch& watch,
+                          Milliseconds waited)
 {
 	log.RotateIfLarge();
-	log.Info("the extender {} starts in process {} ({})", TS4_LOADER_VERSION, GetCurrentProcessId(), Utf8(ProgramPath()));
+	const auto program = ProgramPath();
+	log.Info("the extender {} starts in process {} ({})", TS4_LOADER_VERSION, GetCurrentProcessId(), Utf8(program));
 	const auto gameVersion = ReadGameVersion();
 	log.Info("game version {}", gameVersion);
 	log.Info("TS4_x64.exe: base 0x{:x}, .text {} bytes", image.Base(), image.Text().virtualSize);
@@ -336,10 +226,11 @@ void StartExtender(LoaderLog& log, const ModFolders& folders, ExeImage& image, c
 	{
 		log.Info("modules: {} {} at the decryption", Utf8(std::filesystem::path(module)), ModuleText(module));
 	}
-	const bool markerWritten = BeginStartupGuard(log, folders, gameVersion);
-	ListModDlls(log, folders);
-	WatchGameModules(log, folders, markerWritten);
-	log.Info("the start of the extender is complete; this stage installs no hook and loads no DLL mod");
+	StartExtender(log, ExtenderStart {.folders = folders,
+	                                  .version = TS4_LOADER_VERSION,
+	                                  .gameVersion = gameVersion,
+	                                  .gameFolder = GameFolderOfExe(program).value_or(program.parent_path()),
+	                                  .userFolder = UserFolder().value_or(std::filesystem::path())});
 }
 
 void Start(ProxyState& state)
@@ -406,7 +297,7 @@ void Start(ProxyState& state)
 	}
 	state.exitLineReady = false;
 	state.phase = Phase::Started;
-	StartExtender(log, *folders, *image, watch, std::chrono::duration_cast<Milliseconds>(Clock::now() - started));
+	StartAfterDecryption(log, *folders, *image, watch, std::chrono::duration_cast<Milliseconds>(Clock::now() - started));
 }
 
 DWORD WINAPI StartThread(void* parameter)
