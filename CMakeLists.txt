@@ -57,6 +57,35 @@ target_compile_definitions(ts4_loader_dlls PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
 target_link_libraries(ts4_loader_dlls PUBLIC ts4_loader_core)
 ts4_set_warnings(ts4_loader_dlls)
 
+# The menu bar of the mods: Dear ImGui on the Direct3D 11 swap chain of the game. Windows only. The extender DLL links
+# it. The DLLs of the menu bar load only at the first call to them, when the game draws, so a process that is not the
+# game never loads them.
+if (WIN32)
+  include(cmake/ModImGui.cmake)
+  include(external/common/cmake/ModMinHook.cmake)
+  add_library(
+    ts4_loader_overlay STATIC
+    src/game/overlay/DxgiHooks.h
+    src/game/overlay/Overlay.h
+    src/game/overlay/OverlayRenderer.h
+    src/game/overlay/OverlayUi.h
+    src/game/overlay/DxgiHooks.cpp
+    src/game/overlay/Overlay.cpp
+    src/game/overlay/OverlayRenderer.cpp
+    src/game/overlay/OverlayUi.cpp
+  )
+  target_include_directories(ts4_loader_overlay PUBLIC src)
+  target_compile_definitions(ts4_loader_overlay PUBLIC WIN32_LEAN_AND_MEAN NOMINMAX)
+  target_link_libraries(
+    ts4_loader_overlay
+    PUBLIC ts4_loader_core ts4_mod_game
+    PRIVATE ts4_imgui ts4_minhook
+    INTERFACE delayimp
+  )
+  target_link_options(ts4_loader_overlay INTERFACE /DELAYLOAD:d3dcompiler_47.dll /DELAYLOAD:dwmapi.dll)
+  ts4_set_warnings(ts4_loader_overlay)
+endif ()
+
 if (TS4_LOADER_BUILD_TESTS)
   enable_testing()
   add_subdirectory(tests)
