@@ -30,6 +30,7 @@ endwhile ()
 
 add_executable(
   ts4_loader_tests
+  test_GameStart.cpp
   test_HookRules.cpp
   test_HostTable.cpp
   test_LoaderSettings.cpp
