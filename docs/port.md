@@ -83,3 +83,8 @@ The keys `objects` and `maps` and the key `mods.map` are not ported.
 - `tickHook` stays. Stage 3 finds the native tick of the main thread in Ghidra and hooks it by signature.
 - `mods.disabled` (by mod id) stays. `TS4_MODS_SETTINGS` moves only `mods.json`; the folder of the DLL mods stays in
   the settings folder until a need for more occurs.
+- The limit of `CheckDecrypted` in common (7.2 bits for each byte) is correct for 1.128.90.1030: the `.text` of the
+  exe has an entropy of 6.48 in memory after the decryption and 8.0 on disk (`docs/research/loader/load.md`).
+- The hook manager of common calls callbacks only on the main thread. The extender makes it on the main thread of
+  the game, or gives it `mainThreadId`. Callbacks read up to 4 integer or pointer parameters and an integer result;
+  a function with a float parameter or result needs an assembly thunk, later, if a mod needs it.
