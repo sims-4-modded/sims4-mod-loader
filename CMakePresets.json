@@ -17,9 +17,9 @@
         "rhs": "Windows"
       },
       "environment": {
-        "VCPKG_ROOT": "D:/sims_4/vcpkg",
-        "VCPKG_DEFAULT_BINARY_CACHE": "D:/sims_4/cache/vcpkg-archives",
-        "VCPKG_DOWNLOADS": "D:/sims_4/cache/vcpkg-downloads",
+        "VCPKG_ROOT": "${sourceParentDir}/../vcpkg",
+        "VCPKG_DEFAULT_BINARY_CACHE": "${sourceParentDir}/../cache/vcpkg-archives",
+        "VCPKG_DOWNLOADS": "${sourceParentDir}/../cache/vcpkg-downloads",
         "VCPKG_DISABLE_METRICS": "1"
       },
       "cacheVariables": {

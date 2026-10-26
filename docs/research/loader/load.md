@@ -1,8 +1,9 @@
 # How the game loads the extender
 
 Build: The Sims 4 1.128.90.1030. `TS4_x64.exe` SHA-256 `916b852b187b9c41b9c2d77af55e0d5ed6aaf06909661397d7aa98f2e4db78ab`.
-Research of 2026-10-25, static only (the game did not run). Scripts and output: `D:\sims_4\experiments\loader-research`,
-`D:\sims_4\runs\2026-10-25-loader-research`.
+`<workspace>` is the folder that holds `projects`; `<game>` is the game folder.
+Research of 2026-10-25, static only (the game did not run). Scripts and output: `<workspace>\experiments\loader-research`,
+`<workspace>\runs\2026-10-25-loader-research`.
 
 ## The real import table of the exe
 
@@ -46,7 +47,7 @@ below), which the game process loads from `Game\Bin` after the decryption.
 ## The game run of 2026-10-25
 
 One start of `Game\Bin\TS4_x64.exe` with the EA app open, to the main menu, no save. Output:
-`D:\sims_4\runs\2026-10-25-loader-research`.
+`<workspace>\runs\2026-10-25-loader-research`.
 
 - **Two processes.** The first `TS4_x64.exe` loads `Core\Activation64.dll` and its network DLLs, then stops after
   approximately 0.2 seconds (exit code 100010). The EA app then starts the real game process. In the first process,
@@ -60,7 +61,7 @@ One start of `Game\Bin\TS4_x64.exe` with the EA app open, to the main menu, no s
   `version.dll`.
 - **No fixed base in practice.** `Simulation_x64.dll` loaded at `0x38FC0000`, not at its base `0xF000000`.
 - **Decryption.** In memory, `.text` has an entropy of 6.48 (8.0 on disk) and `.data` 4.09 (8.0 on disk). The dump
-  `D:\sims_4\dump\TS4_1.128.90.1030\TS4_x64.image.bin` passes the checks of the Ghidra import.
+  `<workspace>\dump\TS4_1.128.90.1030\TS4_x64.image.bin` passes the checks of the Ghidra import.
 - **Other swap-chain hooks.** The EA overlay (`IGO64.dll`) and the Discord overlay (`DiscordHook64.dll`) hook the swap
   chain too. The `Present` hook of the menu bar must work with them.
 - **The window.** Title `The Sims™ 4`, class `Canvas-<hex>`; the class changes at each start. Find the window by the
@@ -70,7 +71,7 @@ One start of `Game\Bin\TS4_x64.exe` with the EA app open, to the main menu, no s
 ## The game run with the proxy (2026-10-25, stage 3a)
 
 One start with `install.py install` and `install.py launch`, to the main menu, no save. Output:
-`D:\sims_4\runs\2026-10-25-loader-proxy`. The proxy `version.dll` (extender 0.1.0, SHA-256
+`<workspace>\runs\2026-10-25-loader-proxy`. The proxy `version.dll` (extender 0.1.0, SHA-256
 `93dbb71b5b6175d927eea216ca3f1c7586fb1d65c9ea8382957dcebcd797157e`) was in `Game\Bin`.
 
 - **The game never loaded the proxy.** No process wrote `loader.log`: not the stub, not the game process. The game
@@ -116,11 +117,11 @@ One start with `install.py install` and `install.py launch`, to the main menu, n
 The user approved `Game\Bin\winmm.dll`. The proxy forwards all 181 exports of the System32 `winmm.dll` (ordinal 2 has
 no name), made by `tools/proxy_exports.py` from the export directory of the system DLL; a test compares the names and
 the ordinals of the build with the system DLL. Three starts to the main menu, no save. Output:
-`D:\sims_4\runs\2026-10-25-loader-winmm\run1`, `run2`, `run3`.
+`<workspace>\runs\2026-10-25-loader-winmm\run1`, `run2`, `run3`.
 
 ### Run 1: the load (passive proxy)
 
-- **The game process loads our DLL.** `proxy: Windows loaded F:\Origin Games\The Sims 4\Game\Bin\WINMM.dll 602 ms after
+- **The game process loads our DLL.** `proxy: Windows loaded <game>\Game\Bin\WINMM.dll 602 ms after
   the start of the process 33016 (TS4_x64.exe); .text entropy 6.481 now`. The module list at the main menu has both
   `Game\Bin\WINMM.dll` (ours) and `C:\WINDOWS\system32\winmm.dll` (the real one, loaded by the proxy).
 - **The load comes after the decryption.** The first sample of the `.text` entropy in our start thread is already 6.481

@@ -37,7 +37,6 @@ import tempfile
 from pathlib import Path
 from typing import Callable, Optional
 
-GAME = Path(r"F:\Origin Games\The Sims 4")
 LOADER_NAME = "winmm.dll"
 TARGET_IN_GAME = Path("Game") / "Bin" / LOADER_NAME
 GAME_EXE_IN_GAME = Path("Game") / "Bin" / "TS4_x64.exe"
@@ -47,8 +46,40 @@ DEFAULT_DLL = Path(__file__).resolve().parents[1] / "build" / "x64-release" / LO
 LOADER_MARKER = b"Ts4ModLoaderVersion"
 # A DLL mod exports these functions, so their names are in the file.
 MOD_MARKERS = (b"Ts4ModApiVersion", b"Ts4ModGetInfo", b"Ts4ModInit", b"Ts4ModShutdown")
-GAME_BUILDS = Path(r"D:\sims_4\projects\ts4_research\tools\game_builds.py")
 LOG_LINES = 25
+# The keys that the EA app writes when it installs the game. The value "Install Dir" is the game folder.
+GAME_REGISTRY_KEYS = (r"SOFTWARE\Maxis\The Sims 4", r"SOFTWARE\WOW6432Node\Maxis\The Sims 4")
+
+
+def workspace() -> Path:
+    """The folder that holds projects. TS4_WORKSPACE can give it. Else it is two folders above this repository,
+    because a repository is <workspace>/projects/<repo> and a worktree is <workspace>/worktrees/<name>."""
+    value = os.environ.get("TS4_WORKSPACE")
+    if value:
+        return Path(value)
+    return Path(__file__).resolve().parents[3]
+
+
+def game_folder() -> Path:
+    """The game folder. TS4_GAME can give it. Else the script reads the folder that the EA app wrote in the registry."""
+    value = os.environ.get("TS4_GAME")
+    if value:
+        return Path(value)
+    try:
+        import winreg
+    except ImportError:
+        winreg = None
+    if winreg is not None:
+        for key in GAME_REGISTRY_KEYS:
+            try:
+                with winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, key) as handle:
+                    folder, _ = winreg.QueryValueEx(handle, "Install Dir")
+            except OSError:
+                continue
+            if folder:
+                return Path(folder)
+    sys.exit("The game folder is not known: the registry has no Install Dir of The Sims 4. "
+             "Set TS4_GAME to the game folder.")
 
 
 def local_app_data() -> Path:
@@ -115,8 +146,8 @@ def process_runs(name: str) -> bool:
 
 
 def real_places() -> Places:
-    return Places(game=GAME, settings=local_app_data() / "Sims4Mods",
-                  user=documents() / "Electronic Arts" / "The Sims 4", game_builds=GAME_BUILDS, running=process_runs)
+    return Places(game=game_folder(), settings=local_app_data() / "Sims4Mods",
+                  user=documents() / "Electronic Arts" / "The Sims 4", game_builds=workspace() / "projects" / "ts4_research" / "tools" / "game_builds.py", running=process_runs)
 
 
 def sha256(path: Path) -> str:

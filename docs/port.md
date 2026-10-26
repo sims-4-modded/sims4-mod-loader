@@ -1,8 +1,8 @@
 # The port of the Masters of Albion mod loader
 
 The mod loader of The Sims 4 is a mirror of the logic of the Masters of Albion mod loader
-(`D:\masters_of_albion\projects\mod_loader` and its `common`). The logic is the same; the parts that touch the game
-are different. This file gives each part and its state.
+(`projects/mod_loader` and `projects/common` of that workspace). The logic is the same; the parts that touch the game
+are different. This file gives each part and its state. `<workspace>` is the folder that holds `projects`.
 
 ## What stays, what changes, what goes
 
@@ -25,7 +25,7 @@ are different. This file gives each part and its state.
 - How the game loads the extender: a proxy `winmm.dll` (done in stage 3b; `version.dll` failed, `docs/research/loader/load.md`). A
   game run must show the load time and path of each module.
 - A memory dump of the decrypted `TS4_x64.exe` for Ghidra. The dumper is ready
-  (`D:\sims_4\experiments\loader-research\ts4_dump.py`); it needs one game start, and the EA app must run.
+  (`<workspace>\experiments\loader-research\ts4_dump.py`); it needs one game start, and the EA app must run.
 - Which thread draws (the `Present` hook) and which thread runs the simulation and the game Python.
 
 ## Stage 2: the core
@@ -35,8 +35,8 @@ are different. This file gives each part and its state.
 The DLL mods are in `%LOCALAPPDATA%\Sims4Mods\dlls`: the folder `dlls` in the settings folder of `MakeModFolders`
 (common `mod_core/Folders.h`), next to `mods.json` and `logs` (`mods::ModDllFolder`, `mods::k_DllFolderName`). The
 environment variable `TS4_MODS_SETTINGS` moves `mods.json`; the folder of the DLL mods stays in the settings folder.
-Masters of Albion loads its mod DLLs from `<game>\mods`. This port does not, because the game folder
-`F:\Origin Games\The Sims 4` is read only: the only file of ours there is the loader DLL (`docs/research/loader/load.md`).
+Masters of Albion loads its mod DLLs from `<game>\mods`. This port does not, because the game folder is
+read only: the only file of ours there is the loader DLL (`docs/research/loader/load.md`).
 
 ### The keys of mods.json
 
