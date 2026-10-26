@@ -101,7 +101,9 @@ The keys `objects` and `maps` and the key `mods.map` are not ported.
   the load screens, on the main thread. The service that runs the simulation (and the game Python tick) runs inside
   it. The log proves the thread: the tick runs on the thread that loaded `Simulation_x64.dll`.
 - **The main thread is the thread of the first tick.** The start thread puts a bootstrap hook (own MinHook) on the
-  tick. The first tick makes the hook manager on its thread, hooks the shutdown of the application (the quit hook),
+  tick. The first tick loads the DLL mods (`Ts4ModInit` on the main thread, as `Ts4ModApi.h` tells; the exe is
+  decrypted, so a mod can read offsets from the code), gives them their settings and resolves the hotkeys. Then it
+  makes the hook manager on its thread, hooks the shutdown of the application (the quit hook),
   puts the hooks of the DLL mods on their functions (one unique scan in the named module; the keys that find one
   address join into one hook, `JoinResolvedFunctions`), and removes the bootstrap hook. The hook manager then takes the
   tick, also with the callbacks of the mods on the tick itself.
@@ -120,12 +122,11 @@ The keys `objects` and `maps` and the key `mods.map` are not ported.
 
 ### Follow-ups after the first working extender (2026-10-25)
 
-- `Ts4ModApi.h` says that the extender calls `Ts4ModInit` on the main thread. The extender calls it on its start
-  thread, as Masters of Albion does. Move the load of the DLL mods to the first tick, so that the code obeys the
-  interface.
-- The quit hook (`AppInstance::Shutdown`) did not run in a test: each run stopped the process at the main menu. A test
-  must quit through the menu of the game.
-- The menu bar is very small at 5120x1440. Give `overlay.fontScale` a default from the height of the window.
+- Done (2026-10-26): the extender loads the DLL mods in the first tick, so `Ts4ModInit` runs on the main thread.
+- Done (2026-10-26): when `overlay.fontScale` is not set, the menu bar takes its text size from the window height
+  (1.35 at 5120x1440).
+- Done: the quit hook ran when the game quit through its menu (2026-10-25, "the game quits; the extender stops the
+  DLL mods and the menu bar", then "the extender stopped").
 - The probe of "the game menu is open" is not ported. The menu bar shows when the user pins it (`overlay.pinned`,
   Ctrl+Shift+F4).
 - Game messages and the crash dump writer are not joined yet; `showMessage` writes only to the log.
