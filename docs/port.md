@@ -125,8 +125,9 @@ The keys `objects` and `maps` and the key `mods.map` are not ported.
 - Done (2026-10-26): the extender loads the DLL mods in the first tick, so `Ts4ModInit` runs on the main thread.
 - Done (2026-10-26): when `overlay.fontScale` is not set, the menu bar takes its text size from the window height
   (1.35 at 5120x1440).
-- Done: the quit hook ran when the game quit through its menu (2026-10-25, "the game quits; the extender stops the
-  DLL mods and the menu bar", then "the extender stopped").
+- The quit hook ran when the game quit from live mode (2026-10-25, "the game quits; the extender stops the DLL mods
+  and the menu bar", then "the extender stopped"). A quit from the main menu (2026-10-26) logged no quit line in
+  70 s; then the process was stopped at the main menu. Find out whether that quit calls the shutdown function.
 - The probe of "the game menu is open" is not ported. The menu bar shows when the user pins it (`overlay.pinned`,
   Ctrl+Shift+F4).
 - Game messages and the crash dump writer are not joined yet; `showMessage` writes only to the log.
