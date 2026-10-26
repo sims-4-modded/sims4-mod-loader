@@ -6,6 +6,7 @@
 
 #include <array>
 #include <map>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -47,8 +48,10 @@ struct LoaderSettings
 	/// The menu bar of the mods in the game. It shows while the menu of the game is open (the Escape key).
 	struct Overlay
 	{
-		bool enabled = true;    ///< Install the menu bar. The change works after a restart of the game.
-		double fontScale = 1.0; ///< The size of the text of the menu bar, as a multiple of the default size.
+		bool enabled = true; ///< Install the menu bar. The change works after a restart of the game.
+		/// The size of the text of the menu bar, as a multiple of the default size. With no value, the extender
+		/// calculates the size from the height of the game window.
+		std::optional<double> fontScale;
 		/// Show the menu bar at all times, as if the user pinned it with its hotkey. The hotkey still changes the pin.
 		bool pinned = false;
 

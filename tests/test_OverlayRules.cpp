@@ -3,6 +3,7 @@
  *****************************************************************************/
 
 #include <limits>
+#include <optional>
 
 #include <core/OverlayRules.h>
 #include <gtest/gtest.h>
@@ -142,4 +143,37 @@ TEST(OverlayScale, TheScaleStaysInItsLimits)
 	EXPECT_FLOAT_EQ(StyleScale(3.0, 4.0f), k_MaxStyleScale);
 	EXPECT_FLOAT_EQ(StyleScale(std::numeric_limits<double>::quiet_NaN(), 1.0f), k_MinStyleScale);
 	EXPECT_FLOAT_EQ(StyleScale(std::numeric_limits<double>::infinity(), 1.0f), k_MaxStyleScale);
+}
+
+TEST(OverlayScale, TheDefaultTextSizeComesFromTheWindowHeight)
+{
+	EXPECT_DOUBLE_EQ(DefaultFontScale(1080), 1.0);
+	// The window of 5120x1440: 1440 / 1080 is 1.333, and the nearest step of 0.05 is 1.35.
+	EXPECT_DOUBLE_EQ(DefaultFontScale(1440), 1.35);
+	EXPECT_DOUBLE_EQ(DefaultFontScale(2160), 2.0);
+	EXPECT_DOUBLE_EQ(DefaultFontScale(1600), 1.5);
+}
+
+TEST(OverlayScale, TheDefaultTextSizeStaysInItsLimits)
+{
+	EXPECT_DOUBLE_EQ(DefaultFontScale(720), k_MinDefaultFontScale);
+	EXPECT_DOUBLE_EQ(DefaultFontScale(0), k_MinDefaultFontScale);
+	EXPECT_DOUBLE_EQ(DefaultFontScale(-1), k_MinDefaultFontScale);
+	EXPECT_DOUBLE_EQ(DefaultFontScale(4320), k_MaxDefaultFontScale);
+	EXPECT_DOUBLE_EQ(DefaultFontScale(std::numeric_limits<int>::max()), k_MaxDefaultFontScale);
+}
+
+TEST(OverlayScale, ATextSizeOfTheSettingsIgnoresTheWindowHeight)
+{
+	EXPECT_FLOAT_EQ(MenuBarScale(1.0, 1.0f, 1440), 1.0f);
+	EXPECT_FLOAT_EQ(MenuBarScale(1.5, 2.0f, 1440), 3.0f);
+}
+
+TEST(OverlayScale, WithNoTextSizeTheScaleIsTheLargerOfTheHeightAndTheDpi)
+{
+	EXPECT_FLOAT_EQ(MenuBarScale(std::nullopt, 1.0f, 1440), 1.35f);
+	// The DPI scale is not multiplied by the size from the height.
+	EXPECT_FLOAT_EQ(MenuBarScale(std::nullopt, 1.25f, 2160), 2.0f);
+	EXPECT_FLOAT_EQ(MenuBarScale(std::nullopt, 1.5f, 1080), 1.5f);
+	EXPECT_FLOAT_EQ(MenuBarScale(std::nullopt, 0.0f, 1080), 1.0f);
 }

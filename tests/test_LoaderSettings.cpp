@@ -118,6 +118,26 @@ TEST(LoaderSettings, TheJsonReadsBackTheSame)
 	EXPECT_EQ(*again, settings);
 }
 
+TEST(LoaderSettings, WithNoTextSizeTheFileHasNoTextSize)
+{
+	const auto defaults = LoaderSettingsJson(LoaderSettings {});
+	EXPECT_FALSE(defaults.at("overlay").contains("fontScale"));
+	const auto settings = ParseLoaderSettings(R"({"overlay": {"enabled": true}})");
+	ASSERT_TRUE(settings) << settings.GetError().message;
+	EXPECT_FALSE(settings->overlay.fontScale.has_value());
+	const auto set = ParseLoaderSettings(R"({"overlay": {"fontScale": 1}})");
+	ASSERT_TRUE(set) << set.GetError().message;
+	EXPECT_EQ(set->overlay.fontScale, 1.0);
+	EXPECT_EQ(LoaderSettingsJson(*set).at("overlay").at("fontScale"), 1.0);
+}
+
+TEST(LoaderSettings, RefusesATextSizeOutOfItsRange)
+{
+	EXPECT_FALSE(ParseLoaderSettings(R"({"overlay": {"fontScale": 0.2}})"));
+	EXPECT_FALSE(ParseLoaderSettings(R"({"overlay": {"fontScale": 3.5}})"));
+	EXPECT_FALSE(ParseLoaderSettings(R"({"overlay": {"fontScale": "big"}})"));
+}
+
 TEST(LoaderSettings, OnlyTheHotkeysAndTheTextSizeChangeLive)
 {
 	LoaderSettings current;
@@ -132,7 +152,7 @@ TEST(LoaderSettings, OnlyTheHotkeysAndTheTextSizeChangeLive)
 	EXPECT_FALSE(change.hotkeys);
 	EXPECT_EQ(change.restartOnly, (std::vector<std::string> {"tickHook", "overlay.enabled", "mods", "modDlls"}));
 	const auto live = LiveLoaderSettings(current, next);
-	EXPECT_DOUBLE_EQ(live.overlay.fontScale, 2.0);
+	EXPECT_EQ(live.overlay.fontScale, 2.0);
 	EXPECT_TRUE(live.overlay.enabled);
 	EXPECT_FALSE(live.tickHook);
 	EXPECT_TRUE(live.mods.disabled.empty());
@@ -141,7 +161,9 @@ TEST(LoaderSettings, OnlyTheHotkeysAndTheTextSizeChangeLive)
 
 TEST(LoaderSettings, EachFieldIsInTheJsonOneTimeAndItsRangeAgreesWithTheFile)
 {
-	const LoaderSettings defaults;
+	LoaderSettings defaults;
+	// The file has no text size by default. A value puts the field in the JSON.
+	defaults.overlay.fontScale = 1.0;
 	const auto json = LoaderSettingsJson(defaults);
 	std::set<std::string> paths;
 	for (const auto& field : LoaderFields())
@@ -166,7 +188,7 @@ TEST(LoaderSettings, EditOfAFieldGivesAPatchOfOneField)
 	ASSERT_NE(field, nullptr);
 	const auto edit = EditLoaderField(settings, *field, settings::FieldValue {9.0});
 	ASSERT_TRUE(edit) << edit.GetError().message;
-	EXPECT_DOUBLE_EQ(settings.overlay.fontScale, 3.0);
+	EXPECT_EQ(settings.overlay.fontScale, 3.0);
 	EXPECT_EQ(edit->patch, nlohmann::json({{"overlay", {{"fontScale", 3.0}}}}));
 	const auto* live = settings::FindField<LoaderSettings>(LoaderFields(), "", "liveReload");
 	ASSERT_NE(live, nullptr);

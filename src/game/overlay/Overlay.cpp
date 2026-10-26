@@ -9,6 +9,7 @@
 #include <exception>
 #include <format>
 #include <stdexcept>
+#include <string>
 
 #include <imgui.h>
 #include <imgui_impl_win32.h>
@@ -434,10 +435,17 @@ void Overlay::Present(IDXGISwapChain* swapChain)
 
 void Overlay::ApplyScale()
 {
-	const auto scale = StyleScale(_shown.requested.overlay.fontScale, ImGui_ImplWin32_GetDpiScaleForHwnd(_window));
+	const auto& fontScale = _shown.requested.overlay.fontScale;
+	const auto dpi = ImGui_ImplWin32_GetDpiScaleForHwnd(_window);
+	// The Win32 backend of ImGui gives the size of the client area of the game window in each frame.
+	const auto height = static_cast<int>(ImGui::GetIO().DisplaySize.y);
+	_heightFontScale = DefaultFontScale(height);
+	const auto scale = MenuBarScale(fontScale, dpi, height);
 	auto& style = ImGui::GetStyle();
 	if (scale != _scale && _baseStyle)
 	{
+		_log.info("menu bar: the scale is {:.2f} (overlay.fontScale {}, the window height {}, the DPI scale {:.2f})", scale,
+		          fontScale ? std::format("{:.2f}", *fontScale) : std::string("not set: from the window height"), height, dpi);
 		// The scale of the sizes changes the values of the style, so each new scale starts from the style with no scale.
 		style = *_baseStyle;
 		style.ScaleAllSizes(scale);

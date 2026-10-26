@@ -129,7 +129,10 @@ const std::array k_Fields {
                            .max = 3.0,
                            .step = 0.05,
                            .format = "%.2f",
-                           TS4_NUMBER(overlay.fontScale)},
+                           // With no value in the settings, the field gives the size 1. The extender shows the size
+                           // from the window height in its place.
+                           .getNumber = [](const LoaderSettings& s) { return s.overlay.fontScale.value_or(1.0); },
+                           .setNumber = [](LoaderSettings& s, double v) { s.overlay.fontScale = v; }},
     Field<LoaderSettings> {.group = "Menu bar",
                            .section = "overlay",
                            .key = "enabled",
@@ -204,13 +207,21 @@ ts4::Result<LoaderSettings> ParseLoaderSettings(std::string_view json)
 	{
 		auto& value = settings.overlay;
 		if (!overlay->is_object() || !ReadField(*overlay, "enabled", value.enabled) ||
-		    !ReadField(*overlay, "fontScale", value.fontScale) || !ReadField(*overlay, "pinned", value.pinned))
+		    !ReadField(*overlay, "pinned", value.pinned))
 		{
 			return ts4::MakeError("the object 'overlay' has a field with a wrong type");
 		}
-		if (value.fontScale < 0.5 || value.fontScale > 3.0)
+		if (const auto fontScale = overlay->find("fontScale"); fontScale != overlay->end())
 		{
-			return ts4::MakeError("'fontScale' must be 0.5 to 3");
+			if (!fontScale->is_number())
+			{
+				return ts4::MakeError("the object 'overlay' has a field with a wrong type");
+			}
+			value.fontScale = fontScale->get<double>();
+			if (!(*value.fontScale >= 0.5 && *value.fontScale <= 3.0))
+			{
+				return ts4::MakeError("'fontScale' must be 0.5 to 3");
+			}
 		}
 	}
 	if (const auto mods = root.find("mods"); mods != root.end())
@@ -248,14 +259,17 @@ nlohmann::json LoaderSettingsJson(const LoaderSettings& settings)
 	{
 		hotkeys[name] = FormatHotkey(hotkey);
 	}
+	nlohmann::json overlay {{"enabled", settings.overlay.enabled}, {"pinned", settings.overlay.pinned}};
+	// With no text size, the file has no field: the extender then calculates the size from the window height.
+	if (settings.overlay.fontScale)
+	{
+		overlay["fontScale"] = *settings.overlay.fontScale;
+	}
 	return {
 	    {"tickHook", settings.tickHook},
 	    {"liveReload", settings.liveReload},
 	    {"hotkeys", std::move(hotkeys)},
-	    {"overlay",
-	     {{"enabled", settings.overlay.enabled},
-	      {"fontScale", settings.overlay.fontScale},
-	      {"pinned", settings.overlay.pinned}}},
+	    {"overlay", std::move(overlay)},
 	    {"mods", {{"disabled", settings.mods.disabled}}},
 	    {"modDlls", {{"disabled", settings.modDlls.disabled}}},
 	};

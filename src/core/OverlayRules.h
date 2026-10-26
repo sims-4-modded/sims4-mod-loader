@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include <algorithm>
+#include <optional>
 #include <string_view>
 
 namespace ts4_mod::overlay
@@ -219,6 +220,39 @@ inline constexpr float k_MaxStyleScale = 6.0f;
 		return k_MinStyleScale;
 	}
 	return std::min(scale, k_MaxStyleScale);
+}
+
+/// The window height that gives the text size 1 when the settings do not give `overlay.fontScale`.
+inline constexpr int k_FontScaleHeight = 1080;
+/// The smallest and the largest text size that the extender calculates from the window height.
+inline constexpr double k_MinDefaultFontScale = 1.0;
+inline constexpr double k_MaxDefaultFontScale = 3.0;
+
+/// The text size of the menu bar when the settings do not give `overlay.fontScale`: the window height divided by
+/// `k_FontScaleHeight`, to the nearest 0.05. The result is in the limits above. A height that is not more than 0 gives
+/// the smallest size.
+[[nodiscard]] constexpr double DefaultFontScale(int windowHeight)
+{
+	if (windowHeight <= 0)
+	{
+		return k_MinDefaultFontScale;
+	}
+	// The calculation uses integers, so that the result is the same in each build. The text size has steps of 0.05.
+	const auto steps = (static_cast<std::int64_t>(windowHeight) * 20 + k_FontScaleHeight / 2) / k_FontScaleHeight;
+	return std::clamp(static_cast<double>(steps) / 20.0, k_MinDefaultFontScale, k_MaxDefaultFontScale);
+}
+
+/// The scale of the menu bar. A `fontScale` from the settings is multiplied by the DPI scale (see `StyleScale`). With no
+/// `fontScale`, the scale is the larger value of the size from the window height and the DPI scale. The height of the
+/// window already includes the DPI, so the extender does not multiply the two values.
+[[nodiscard]] constexpr float MenuBarScale(std::optional<double> fontScale, float dpiScale, int windowHeight)
+{
+	if (fontScale)
+	{
+		return StyleScale(*fontScale, dpiScale);
+	}
+	const double dpi = dpiScale > 0.0f ? dpiScale : 1.0f;
+	return StyleScale(std::max(DefaultFontScale(windowHeight), dpi), 1.0f);
 }
 
 } // namespace ts4_mod::overlay

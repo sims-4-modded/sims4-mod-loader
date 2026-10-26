@@ -709,6 +709,12 @@ void RegisterLoaderItems(LoaderState& state)
 			{
 				out->value.number = *number;
 			}
+			// With no text size in the settings, the menu bar uses the size from the window height. The field shows it.
+			if (b.field->getNumber != nullptr && !b.state->requested.overlay.fontScale && b.state->overlay &&
+			    std::string_view(b.field->section) == "overlay" && std::string_view(b.field->key) == "fontScale")
+			{
+				out->value.number = b.state->overlay->HeightFontScale();
+			}
 			out->restartPending = b.field->restartOnly && value != live ? 1u : 0u;
 		};
 		const auto set = [](void* user, const Ts4FieldValue* value, uint32_t /*save*/, Ts4Text* message) -> uint32_t {

@@ -97,6 +97,9 @@ public:
 
 	[[nodiscard]] bool Visible() const { return _visible.load(); }
 	[[nodiscard]] nlohmann::json Describe() const;
+	/// The text size that the bar calculates from the window height. It is 1 before the first frame. Any thread.
+	[[nodiscard]] double HeightFontScale() const { return _heightFontScale.load(); }
+
 	/// The hooks on the swap chain, for a check of the code (`DxgiHooks::ProbeAgain`).
 	[[nodiscard]] DxgiHooks* Hooks() const { return _hooks.get(); }
 
@@ -119,7 +122,7 @@ private:
 	[[nodiscard]] bool IsGameWindow(HWND window) const;
 	void Present(IDXGISwapChain* swapChain);
 	void DrawFrame(IDXGISwapChain* swapChain);
-	/// Set the scale of the text and of the sizes from `overlay.fontScale` and the DPI of the window.
+	/// Set the scale of the text and of the sizes from `overlay.fontScale`, the height and the DPI of the window.
 	void ApplyScale();
 	void SubclassWindow(HWND window);
 	void RestoreWindow();
@@ -138,6 +141,8 @@ private:
 	std::atomic<bool> _rebuild = false;
 	/// The scale that the style has now, and the style before any scale.
 	float _scale = 0.0f;
+	/// The text size from the window height, for the menu field when the settings give no text size. Any thread.
+	std::atomic<double> _heightFontScale = 1.0;
 	std::unique_ptr<ImGuiStyle> _baseStyle;
 
 	std::atomic<bool> _visible = false;
