@@ -3,9 +3,9 @@
  *****************************************************************************/
 
 // The extender in the game process: a port of the start of the Masters of Albion mod loader. The start thread reads
-// mods.json, starts the start-up guard, loads the DLL mods and puts the bootstrap hook on the tick function (the update
-// of the client services). The first tick runs on the main thread: it makes the hook manager there, puts the hooks of
-// the mods on their functions and then gives the tick to the hook manager. Each tick then reads the hotkeys, shows the
+// mods.json, starts the start-up guard and puts the bootstrap hook on the tick function (the update of the client
+// services). The first tick runs on the main thread: it loads the DLL mods, makes the hook manager there, puts the
+// hooks of the mods on their functions and then gives the tick to the hook manager. Each tick then reads the hotkeys, shows the
 // menu bar, does the late steps of the start and runs the tasks of the main thread.
 
 #include "game/loader/Extender.h"
@@ -1536,6 +1536,44 @@ bool InstallModHooks(LoaderState& state)
 	return true;
 }
 
+/// Load each DLL mod of the folder of the DLL mods, except the DLLs that the settings or the start-up guard turn off.
+void LoadModDlls(LoaderState& state)
+{
+	const auto folder = mods::ModDllFolder(state.start.folders.settingsFolder);
+	HostInfo info {.loaderVersion = state.start.version,
+	               .gameVersion = state.start.gameVersion,
+	               .gameFolder = Utf8(state.start.gameFolder),
+	               .userFolder = Utf8(state.start.userFolder),
+	               .settingsFolder = Utf8(state.start.folders.settingsFolder),
+	               .logFolder = Utf8(state.start.folders.logFolder)};
+	state.dlls = std::make_unique<ModDllLoader>(state, std::move(info), &CatchAccessViolation);
+	state.log.Info("mod DLLs: {} in {}", state.dllFiles.size(), Utf8(folder));
+	for (const auto& file : state.dllFiles)
+	{
+		const auto name = Utf8(file.filename());
+		if (const auto reason = mods::DisabledByFile(state.settings, name))
+		{
+			const auto& mod = state.dlls->AddDisabled(file, *reason);
+			state.log.Info("mod DLLs:   {} is off ({}), sha256 {}", mod.file, mod.error, mod.sha256);
+			continue;
+		}
+		WriteStartupMarker(state, std::format("mod DLL {}", name));
+		const auto& mod = state.dlls->Load(file, state.settings.mods.disabled);
+		state.log.Info("mod DLLs:   {} is {}{}, sha256 {}", mod.file, ModDllStateName(mod.state),
+		               mod.error.empty() ? std::string() : ": " + mod.error, mod.sha256);
+	}
+}
+
+/// Load the DLL mods, give them their settings and use their hotkeys. The first tick calls it on the main thread, as
+/// `Ts4ModApi.h` tells. At this time the activation wrapper of EA decrypted the program, so a mod can read its code.
+void LoadMods(LoaderState& state)
+{
+	state.log.Info("mod DLLs: the extender loads the DLL mods on the main thread {}", GetCurrentThreadId());
+	LoadModDlls(state);
+	(void)DeliverSettings(state);
+	ApplyHotkeys(state);
+}
+
 /// Give the tick to the hook manager after the bootstrap hook removed itself. Main thread.
 void HandOverTick(LoaderState& state)
 {
@@ -1567,8 +1605,8 @@ void HandOverTick(LoaderState& state)
 }
 
 /// The first ticks, from the bootstrap hook, on the main thread and outside the callbacks of the hook manager. The
-/// first tick makes the hook manager. Each tick tries the hooks of the mods until their modules are loaded, and then
-/// asks to remove the bootstrap hook. Return true to remove it.
+/// first tick loads the DLL mods and makes the hook manager. Each tick tries the hooks of the mods until their modules are
+/// loaded, and then asks to remove the bootstrap hook. Return true to remove it.
 bool OnBootstrapTick(LoaderState& state)
 {
 	if (state.mainThread.load() == 0)
@@ -1576,6 +1614,9 @@ bool OnBootstrapTick(LoaderState& state)
 		state.mainThread = GetCurrentThreadId();
 		state.log.Info("tick: the first tick runs on thread {}; this is the main thread of the extender",
 		               state.mainThread.load());
+		// The DLL mods start before the extender puts more hooks on the code of the game. Thus a mod that reads the
+		// code in its init finds the original bytes, except on the tick function.
+		LoadMods(state);
 		HookManager::Options options;
 		options.ownerFailed = [&state](HookOwner owner, const std::string& reason) {
 			FailOwner(state, static_cast<OwnerId>(owner), reason);
@@ -1609,34 +1650,6 @@ bool OnBootstrapTick(LoaderState& state)
 	}
 	RunTick(state);
 	return state.hooks != nullptr && state.modHooksDone && !state.quitting.load();
-}
-
-/// Load each DLL mod of the folder of the DLL mods, except the DLLs that the settings or the start-up guard turn off.
-void LoadModDlls(LoaderState& state)
-{
-	const auto folder = mods::ModDllFolder(state.start.folders.settingsFolder);
-	HostInfo info {.loaderVersion = state.start.version,
-	               .gameVersion = state.start.gameVersion,
-	               .gameFolder = Utf8(state.start.gameFolder),
-	               .userFolder = Utf8(state.start.userFolder),
-	               .settingsFolder = Utf8(state.start.folders.settingsFolder),
-	               .logFolder = Utf8(state.start.folders.logFolder)};
-	state.dlls = std::make_unique<ModDllLoader>(state, std::move(info), &CatchAccessViolation);
-	state.log.Info("mod DLLs: {} in {}", state.dllFiles.size(), Utf8(folder));
-	for (const auto& file : state.dllFiles)
-	{
-		const auto name = Utf8(file.filename());
-		if (const auto reason = mods::DisabledByFile(state.settings, name))
-		{
-			const auto& mod = state.dlls->AddDisabled(file, *reason);
-			state.log.Info("mod DLLs:   {} is off ({}), sha256 {}", mod.file, mod.error, mod.sha256);
-			continue;
-		}
-		WriteStartupMarker(state, std::format("mod DLL {}", name));
-		const auto& mod = state.dlls->Load(file, state.settings.mods.disabled);
-		state.log.Info("mod DLLs:   {} is {}{}, sha256 {}", mod.file, ModDllStateName(mod.state),
-		               mod.error.empty() ? std::string() : ": " + mod.error, mod.sha256);
-	}
 }
 
 /// The DLL notification of Windows (ntdll). Windows calls it on the thread that loads or unloads a DLL.
@@ -1771,23 +1784,22 @@ void StartExtender(LoaderLog& startLog, const ExtenderStart& start)
 	BeginStartupGuard(*state);
 	RegisterLoaderItems(*state);
 	RegisterLoaderQueries(*state);
-	LoadModDlls(*state);
-	(void)DeliverSettings(*state);
 	if (state->live)
 	{
 		state->hotkeyInput.emplace();
 	}
-	ApplyHotkeys(*state);
 	AddFrameWork(*state);
 	WatchModuleLoads(*state);
 	WriteStartupMarker(*state, "hooks");
 	if (!InstallBootstrap(*state))
 	{
-		// No tick counts the frames, so no step of the start can become stable.
+		// No tick counts the frames, so no step of the start can become stable. No DLL mod loads, because the mods load
+		// in the first tick.
+		state->log.Info("mod DLLs: error: no tick runs, so the extender loads no DLL mod");
 		ClearStartupMarker(*state, "no tick runs");
 		return;
 	}
-	state->log.Info("the start thread of the extender is complete; the main thread does the rest at its first tick");
+	state->log.Info("the start thread of the extender is complete; the main thread loads the DLL mods at its first tick");
 }
 
 } // namespace ts4_mod::loader
