@@ -1,0 +1,51 @@
+# Prepare the workspace layout of the presets on a runner: vcpkg at the pinned commit next to "projects", and the
+# vcpkg binary cache and downloads in "cache". The presets find both from the folder of the project.
+name: Prepare vcpkg
+description: Get vcpkg at the commit of builtin-baseline, and restore the cache of the vcpkg archives and downloads.
+inputs:
+  save-cache:
+    description: Save the cache at the end of the job ("true"), or only restore it.
+    default: "false"
+runs:
+  using: composite
+  steps:
+    - name: Read the vcpkg commit from vcpkg.json
+      shell: pwsh
+      run: |
+        $manifest = Get-Content projects/mod_loader/vcpkg.json -Raw | ConvertFrom-Json
+        "VCPKG_COMMIT=$($manifest.'builtin-baseline')" >> $env:GITHUB_ENV
+        # The image of the runner is part of the cache key: a new compiler gives new vcpkg archives.
+        "RUNNER_IMAGE=$env:ImageOS-$env:ImageVersion" >> $env:GITHUB_ENV
+        "RUNNER_IMAGE_OS=$env:ImageOS" >> $env:GITHUB_ENV
+        New-Item -ItemType Directory -Force cache/vcpkg-archives, cache/vcpkg-downloads | Out-Null
+
+    - name: Restore and save the vcpkg cache
+      if: inputs.save-cache == 'true'
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          cache/vcpkg-archives
+          cache/vcpkg-downloads
+        key: vcpkg-${{ env.RUNNER_IMAGE }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('projects/mod_loader/vcpkg.json') }}
+        restore-keys: |
+          vcpkg-${{ env.RUNNER_IMAGE_OS }}-
+
+    - name: Restore the vcpkg cache
+      if: inputs.save-cache != 'true'
+      uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: |
+          cache/vcpkg-archives
+          cache/vcpkg-downloads
+        key: vcpkg-${{ env.RUNNER_IMAGE }}-${{ env.VCPKG_COMMIT }}-${{ hashFiles('projects/mod_loader/vcpkg.json') }}
+        restore-keys: |
+          vcpkg-${{ env.RUNNER_IMAGE_OS }}-
+
+    - name: Get vcpkg at the pinned commit
+      shell: pwsh
+      run: |
+        git init --quiet vcpkg
+        git -C vcpkg fetch --quiet --depth 1 https://github.com/microsoft/vcpkg.git $env:VCPKG_COMMIT
+        git -C vcpkg checkout --quiet --detach FETCH_HEAD
+        & vcpkg/bootstrap-vcpkg.bat -disableMetrics
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

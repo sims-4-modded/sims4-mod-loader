@@ -1,0 +1,121 @@
+# The checks of the mod loader: the format, the lint, the build and the tests.
+#
+# The checkout keeps the layout of the workspace that the presets expect: the project in "projects/mod_loader", and
+# vcpkg and "cache" next to "projects". Thus CI uses the same presets and tools/preset.bat as a developer.
+#
+# The submodule external/common is the repository "common" of the same owner. If that repository is private, add the
+# secret COMMON_REPO_TOKEN: a token that can read it. Without the secret, the checkout uses the token of the job.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  format:
+    name: Format (clang-format, ruff)
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: projects/mod_loader
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: projects/mod_loader
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install the pinned tools
+        run: python -m pip install --disable-pip-version-check -r tools/requirements-check.txt
+
+      - name: Check the format
+        run: python tools/check.py format
+
+  lint:
+    name: Lint (clang-tidy)
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: projects/mod_loader
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: projects/mod_loader
+          submodules: recursive
+          token: ${{ secrets.COMMON_REPO_TOKEN || github.token }}
+          persist-credentials: false
+
+      - uses: ./projects/mod_loader/.github/actions/prepare
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install the pinned tools
+        run: python -m pip install --disable-pip-version-check -r tools/requirements-check.txt
+
+      # The configure step installs the vcpkg packages and gets ImGui and MinHook, and writes compile_commands.json.
+      - name: Configure
+        run: tools\preset.bat x64-release configure
+
+      - name: Check with clang-tidy
+        run: python tools/check.py tidy
+
+  build-test:
+    name: Build and test
+    runs-on: windows-2025-vs2026
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: projects/mod_loader
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: projects/mod_loader
+          submodules: recursive
+          token: ${{ secrets.COMMON_REPO_TOKEN || github.token }}
+          persist-credentials: false
+
+      - uses: ./projects/mod_loader/.github/actions/prepare
+        with:
+          save-cache: "true"
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # The preset compiles with /W4 /WX, so a warning stops the build. ctest shows the output of a test that fails.
+      - name: Configure, build and test
+        run: tools\preset.bat x64-release
+
+      - name: Test the Python tools
+        run: |
+          python tools/install.py --self-test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tools/proxy_exports.py --self-test
+
+      - name: Upload the test log
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: test-log
+          path: projects/mod_loader/build/x64-release/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
