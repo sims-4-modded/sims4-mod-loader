@@ -12,7 +12,6 @@ Read the files in this order. Each file is short and has one topic.
 8. [The menu bar](menu-bar.md): the Dear ImGui bar on the swap chain of the game.
 9. [The threads](threads.md): which thread runs which work.
 10. [The quit](quit.md): what stops when the game quits.
-11. [Decisions](decisions.md): the rules that a reader must know.
 12. [Open items](follow-ups.md): the work that is not done.
 
 The research of how the game loads the extender is in [research/loader/load.md](research/loader/load.md). It cites
