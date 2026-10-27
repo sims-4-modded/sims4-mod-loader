@@ -1,0 +1,4 @@
+# The versions of the tools that CI and tools/check.py use for the format check and the lint check.
+clang-format==21.1.7
+clang-tidy==21.1.6
+ruff==0.17.1

@@ -18,6 +18,7 @@ A clone of a local repository needs `git -c protocol.file.allow=always submodule
 ## Tests
 
 `ctest --preset x64-release` runs the GoogleTest tests. `python tools\install.py --self-test` tests the install tool.
+`python tools\check.py` does the format and lint checks of CI (the tool versions are in `tools\requirements-check.txt`).
 
 ## How to install
 
