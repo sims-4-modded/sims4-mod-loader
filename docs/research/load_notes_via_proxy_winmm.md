@@ -37,12 +37,14 @@ The game never loads a proxy `version.dll` (run of stage 3a below). The extender
 below), which the game process loads from `Game\Bin` after the decryption.
 
 1. **`version.dll`** (the first choice; the run with the proxy below shows that the game never loads it). The decrypted exe and `python37_x64.dll` import it, so it loads before the D3D11
-   device and before Python. It has 17 exports by name. The Masters of Albion loader uses the same mechanism, so the
-   proxy stubs port directly.
+   device and before Python. It has 17 exports by name.
 2. `winmm.dll`: the same early time, but 181 exports.
 3. `dxgi.dll` or `d3d11.dll`: direct access to the swap chain, but each export must forward, and they can conflict
    with the EA overlay (`igo64.dll`) and ReShade-style tools.
 4. Not `winhttp.dll`: it loads with the activation DLL, before the decryption, in the network path of the DRM.
+
+A bit of info on the `winmm.dll`: it's Microsoft's Windows Multimedia API. It handles low-level audio and game
+controllers.
 
 ## The game run of 2026-10-25
 
