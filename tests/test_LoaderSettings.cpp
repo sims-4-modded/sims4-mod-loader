@@ -81,7 +81,7 @@ TEST(LoaderSettings, ReadsTheIdsOfTheModsThatAreOff)
 	EXPECT_FALSE(ParseLoaderSettings(R"({"mods": {"disabled": ["bad id!"]}})"));
 	EXPECT_FALSE(ParseLoaderSettings(R"({"mods": {"disabled": [""]}})"));
 	EXPECT_FALSE(ParseLoaderSettings(R"({"mods": {"disabled": [3]}})"));
-	// The keys of the mod zips of Masters of Albion are not settings of this extender.
+	// The key of a map of mods is not a setting of this extender.
 	EXPECT_FALSE(ParseLoaderSettings(R"({"mods": {"map": "a"}})"));
 }
 

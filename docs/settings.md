@@ -16,8 +16,6 @@ The settings file is `%LOCALAPPDATA%\Sims4Mods\mods.json`. `TS4_MODS_SETTINGS` g
 - `modDlls.disabled`: the file names of the DLLs that do not load. After a restart. The
   [start-up guard](startup-guard.md) adds to it.
 
-Masters of Albion has `frameHook` in place of `tickHook`. Its keys `objects`, `maps` and `mods.map` are not ported.
-
 ## The life of the file
 
 ```mermaid

@@ -2,7 +2,7 @@
 
 Read the files in this order. Each file is short and has one topic.
 
-1. [What the mod loader is](overview.md): what it does, and what came from the Masters of Albion loader.
+1. [What the mod loader is](overview.md): what it does, and its parts.
 2. [How the game loads it](game-load.md): the proxy `winmm.dll` and the wait for the decryption.
 3. [The start](start.md): the start thread, the bootstrap hook and the first tick.
 4. [The DLL mods](dll-mods.md): the folder and the checks of each DLL.

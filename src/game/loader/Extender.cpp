@@ -2,7 +2,7 @@
  * Copyright (c) 2026 Sims 4 mods developers
  *****************************************************************************/
 
-// The extender in the game process: a port of the start of the Masters of Albion mod loader. The start thread reads
+// The extender in the game process. The start thread reads
 // mods.json, starts the start-up guard and puts the bootstrap hook on the tick function (the update of the client
 // services). The first tick runs on the main thread: it loads the DLL mods, makes the hook manager there, puts the
 // hooks of the mods on their functions and then gives the tick to the hook manager. Each tick then reads the hotkeys, shows the
@@ -745,7 +745,6 @@ void RegisterLoaderItems(LoaderState& state)
 		const char* defaultHotkey;
 		Ts4TaskFn run;
 	};
-	// The default hotkeys are the hotkeys of the Masters of Albion mod loader.
 	const std::array actions {
 	    LoaderAction {.hotkey = "reloadSettings",
 	                  .defaultHotkey = "Ctrl+Shift+F10",

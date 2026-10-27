@@ -178,4 +178,4 @@ hooks on top of ours (one warning line for each function); no error.
 
 - The quit hook was not seen in a run: each run stopped the process at the main menu, and `WM_CLOSE` does not quit the
   game from the main menu.
-- The DLL mods start on the start thread (as in Masters of Albion), not on the main thread.
+- The DLL mods start on the start thread, not on the main thread.
