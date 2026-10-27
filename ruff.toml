@@ -1,0 +1,7 @@
+# The settings of ruff for the Python tools. CI and tools/check.py use them.
+line-length = 120
+target-version = "py310"
+
+[lint]
+# The default rules, the import order and the bug checks.
+select = ["E4", "E7", "E9", "F", "I", "B"]

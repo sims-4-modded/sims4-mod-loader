@@ -78,8 +78,9 @@ def game_folder() -> Path:
                 continue
             if folder:
                 return Path(folder)
-    sys.exit("The game folder is not known: the registry has no Install Dir of The Sims 4. "
-             "Set TS4_GAME to the game folder.")
+    sys.exit(
+        "The game folder is not known: the registry has no Install Dir of The Sims 4. Set TS4_GAME to the game folder."
+    )
 
 
 def local_app_data() -> Path:
@@ -138,16 +139,22 @@ class Places:
 def process_runs(name: str) -> bool:
     """Return True if a process with this image name runs."""
     try:
-        out = subprocess.run(["tasklist", "/FI", f"IMAGENAME eq {name}", "/NH"], capture_output=True, text=True,
-                             timeout=30)
+        out = subprocess.run(
+            ["tasklist", "/FI", f"IMAGENAME eq {name}", "/NH"], capture_output=True, text=True, timeout=30
+        )
     except (OSError, subprocess.SubprocessError):
         return False
     return name.lower() in out.stdout.lower()
 
 
 def real_places() -> Places:
-    return Places(game=game_folder(), settings=local_app_data() / "Sims4Mods",
-                  user=documents() / "Electronic Arts" / "The Sims 4", game_builds=workspace() / "projects" / "ts4_research" / "tools" / "game_builds.py", running=process_runs)
+    return Places(
+        game=game_folder(),
+        settings=local_app_data() / "Sims4Mods",
+        user=documents() / "Electronic Arts" / "The Sims 4",
+        game_builds=workspace() / "projects" / "ts4_research" / "tools" / "game_builds.py",
+        running=process_runs,
+    )
 
 
 def sha256(path: Path) -> str:
@@ -249,16 +256,23 @@ def check_game_version(places: Places) -> int:
         print("game version: game_builds.py is not there; no check")
         return 0
     try:
-        out = subprocess.run([sys.executable, "-I", str(places.game_builds), "check", "--quick"], capture_output=True,
-                             text=True, timeout=300, cwd=str(places.game_builds.parent.parent))
+        out = subprocess.run(
+            [sys.executable, "-I", str(places.game_builds), "check", "--quick"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=str(places.game_builds.parent.parent),
+        )
     except (OSError, subprocess.SubprocessError) as error:
         print(f"game version: WARNING: the check did not run: {error}")
         return 1
     for line in (out.stdout + out.stderr).splitlines():
         print(f"game version: {line}")
     if out.returncode == 1:
-        print("game version: WARNING: THE GAME CHANGED since the last record. Record it (game_builds.py record) and "
-              "check the extender before a test.")
+        print(
+            "game version: WARNING: THE GAME CHANGED since the last record. Record it (game_builds.py record) and "
+            "check the extender before a test."
+        )
     elif out.returncode == 2:
         print("game version: WARNING: the packs changed since the last record.")
     return out.returncode
@@ -304,13 +318,17 @@ def status(places: Places) -> int:
         digest = sha256(target)
         recorded = load_state(places).get("loader", {})
         same = "as installed" if recorded.get("sha256") == digest else "NOT the file that the script installed"
-        print(f"extender: installed, ours: {target} sha256 {digest} ({same}"
-              + (f", {recorded.get('installedAt')})" if recorded else ")"))
+        print(
+            f"extender: installed, ours: {target} sha256 {digest} ({same}"
+            + (f", {recorded.get('installedAt')})" if recorded else ")")
+        )
     else:
         print(f"extender: FOREIGN: {target} is not the extender; the script will not touch it. sha256 {sha256(target)}")
         result = 1
-    print(f"game: {GAME_EXE_NAME} {'runs' if places.running(GAME_EXE_NAME) else 'does not run'}, "
-          f"{EA_APP_NAME} {'runs' if places.running(EA_APP_NAME) else 'does not run'}")
+    print(
+        f"game: {GAME_EXE_NAME} {'runs' if places.running(GAME_EXE_NAME) else 'does not run'}, "
+        f"{EA_APP_NAME} {'runs' if places.running(EA_APP_NAME) else 'does not run'}"
+    )
     check_game_version(places)
     show_options(places)
     mods_list(places)
@@ -336,15 +354,24 @@ def launch(places: Places, start: Optional[Callable[[Path], int]] = None) -> int
     check_game_version(places)
     show_options(places)
     if start is None:
+
         def start(path: Path) -> int:
             flags = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
-            process = subprocess.Popen([str(path)], cwd=str(path.parent), creationflags=flags, close_fds=True,
-                                       stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                       stderr=subprocess.DEVNULL)
+            process = subprocess.Popen(
+                [str(path)],
+                cwd=str(path.parent),
+                creationflags=flags,
+                close_fds=True,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
             return process.pid
+
     pid = start(exe)
-    print(f"started {exe} (stub process {pid}); the EA app starts the game process. "
-          "Stop the game only at the main menu.")
+    print(
+        f"started {exe} (stub process {pid}); the EA app starts the game process. Stop the game only at the main menu."
+    )
     return 0
 
 
@@ -422,8 +449,9 @@ def mods_remove(places: Places, name: str) -> int:
     if not folder.exists():
         print("nothing to remove")
         return 0
-    matches = [path for path in sorted(folder.iterdir())
-               if path.suffix.lower() == ".dll" and path.name.lower() == name.lower()]
+    matches = [
+        path for path in sorted(folder.iterdir()) if path.suffix.lower() == ".dll" and path.name.lower() == name.lower()
+    ]
     if not matches:
         print(f"no DLL {name} in {folder}")
         return 0
@@ -454,8 +482,9 @@ def self_test() -> int:
         user.mkdir()
         (user / "Options.ini").write_text("[options]\nmodsdisabled = 0\nscriptmodsenabled = 1\n", encoding="utf-8")
         runs = set()
-        places = Places(game=game, settings=root / "Sims4Mods", user=user, game_builds=None,
-                        running=lambda name: name in runs)
+        places = Places(
+            game=game, settings=root / "Sims4Mods", user=user, game_builds=None, running=lambda name: name in runs
+        )
         game_files = {path: path.read_bytes() for path in game.rglob("*") if path.is_file()}
 
         def refused(call) -> bool:
@@ -496,7 +525,9 @@ def self_test() -> int:
         # A build of the extender with another file name does not go in.
         assert refused(lambda: install(places, fake_dll(root / "version.dll", LOADER_MARKER))), "version.dll went in"
         assert not (game / "Game" / "Bin" / "version.dll").exists()
-        assert refused(lambda: checked_target(dataclasses.replace(places, game=root / "nothing"))), "no game, no install"
+        assert refused(lambda: checked_target(dataclasses.replace(places, game=root / "nothing"))), (
+            "no game, no install"
+        )
         # Nothing changes while the game runs.
         runs.add(GAME_EXE_NAME)
         assert refused(lambda: install(places, loader)), "install while the game runs"

@@ -55,7 +55,7 @@ def read_exports(data: bytes) -> List[Export]:
     if data[:2] != b"MZ":
         raise ValueError("the file is not a PE file: no MZ header")
     pe = struct.unpack_from("<I", data, 0x3C)[0]
-    if data[pe:pe + 4] != b"PE\0\0":
+    if data[pe : pe + 4] != b"PE\0\0":
         raise ValueError("the file is not a PE file: no PE header")
     sections = struct.unpack_from("<H", data, pe + 6)[0]
     optional_size = struct.unpack_from("<H", data, pe + 20)[0]
@@ -74,13 +74,14 @@ def read_exports(data: bytes) -> List[Export]:
 
     def text(rva: int) -> str:
         start = offset(rva)
-        return data[start:data.index(b"\0", start)].decode("ascii")
+        return data[start : data.index(b"\0", start)].decode("ascii")
 
     if export_rva == 0:
         return []
     directory = offset(export_rva)
-    base, functions, names, function_table, name_table, ordinal_table = struct.unpack_from("<IIIIII", data,
-                                                                                          directory + 16)
+    base, functions, names, function_table, name_table, ordinal_table = struct.unpack_from(
+        "<IIIIII", data, directory + 16
+    )
     named = {}
     for i in range(names):
         name_rva = struct.unpack_from("<I", data, offset(name_table) + i * 4)[0]
@@ -160,8 +161,9 @@ def json_text(name: Optional[str]) -> str:
 
 
 def make_asm(exports: List[Export]) -> str:
-    stubs = "\n".join(f"PROXY_STUB {stub_name(export)[len('Proxy_'):]}, {index}" for index, export in
-                      enumerate(exports))
+    stubs = "\n".join(
+        f"PROXY_STUB {stub_name(export)[len('Proxy_') :]}, {index}" for index, export in enumerate(exports)
+    )
     return f"""; ******************************************************************************
 ; Copyright (c) 2026 Sims 4 mods developers
 ; ******************************************************************************
@@ -189,8 +191,11 @@ def generate(dll: Path, folder: Path) -> int:
     exports = read_exports(dll.read_bytes())
     check_exports(exports)
     folder.mkdir(parents=True, exist_ok=True)
-    files = {f"{LIBRARY}.def": make_def(exports), "WinmmExports.h": make_header(exports),
-             "ProxyStubs.asm": make_asm(exports)}
+    files = {
+        f"{LIBRARY}.def": make_def(exports),
+        "WinmmExports.h": make_header(exports),
+        "ProxyStubs.asm": make_asm(exports),
+    }
     for name, content in files.items():
         (folder / name).write_text(content, encoding="utf-8", newline="\n")
     unnamed = [export.ordinal for export in exports if not export.name]
@@ -263,8 +268,10 @@ def main() -> int:
         return generate(args.dll, args.out)
     if args.command == "list":
         for export in read_exports(args.dll.read_bytes()):
-            print(f"{export.ordinal:5} {export.name or '(no name)'}" + (f" -> {export.forwarder}" if export.forwarder
-                                                                         else ""))
+            print(
+                f"{export.ordinal:5} {export.name or '(no name)'}"
+                + (f" -> {export.forwarder}" if export.forwarder else "")
+            )
         return 0
     errors = compare(read_exports(args.system.read_bytes()), read_exports(args.proxy.read_bytes()))
     for error in errors:
