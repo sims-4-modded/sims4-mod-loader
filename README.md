@@ -1,7 +1,7 @@
 # The Sims 4 mod loader
 
 The script extender of The Sims 4: the DLL that the game loads. It loads the DLL mods and gives them hooks, a menu
-bar, settings, hotkeys and inspector queries. The state of the port is in `docs/port.md`.
+bar, settings, hotkeys and inspector queries. The docs are in [docs/README.md](docs/README.md).
 
 ## Build
 
