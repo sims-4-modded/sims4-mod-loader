@@ -14,7 +14,7 @@ Read the files in this order. Each file is short and has one topic.
 10. [The quit](quit.md): what stops when the game quits.
 12. [Open items](follow-ups.md): the work that is not done.
 
-The research of how the game loads the extender is in [research/loader/load.md](research/loader/load.md). It cites
+The research of how the game loads the extender is in [research/loader/load.md](research/load.md). It cites
 the addresses of one game version; these docs do not.
 
 The interface between the extender and a DLL mod, with the full sequence of a mod load, is in the

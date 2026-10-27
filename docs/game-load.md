@@ -2,7 +2,7 @@
 
 The extender is a proxy of `winmm.dll`. `TS4_x64.exe` and `Simulation_x64.dll` import `WINMM.dll`, and Windows finds
 it in `Game\Bin` first. A proxy `version.dll` does not work: the game always loads the System32 copy first. The
-research is in [research/loader/load.md](research/loader/load.md).
+research is in [research/loader/load_notes_via_proxy_winmm.md.md](research/load_notes_via_proxy_winmm.md).
 
 - The proxy forwards all 181 exports of the System32 `winmm.dll` with their names and ordinals. Ordinal 2 has no
   name. `tools/proxy_exports.py` makes the export list from the system DLL.
