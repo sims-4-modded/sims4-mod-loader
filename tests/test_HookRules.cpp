@@ -157,8 +157,9 @@ TEST(HookRules, JoinsTheTargetsThatFindOneAddress)
 	const auto b = *MakeFunctionTarget(TS4_MODULE_GAME, "B", "48 89 5C 24 ??", 2);
 	const auto c = *MakeFunctionTarget(TS4_MODULE_SIMULATION, "C", "40 53", 1);
 	const auto missing = *MakeFunctionTarget(TS4_MODULE_SIMULATION, "D", "40 55", 1);
-	const std::array functions {ResolvedFunction {a, 0x1000}, ResolvedFunction {c, 0x2000}, ResolvedFunction {b, 0x1000},
-	                            ResolvedFunction {missing, 0}};
+	const std::array functions {
+	    ResolvedFunction {.target = a, .address = 0x1000}, ResolvedFunction {.target = c, .address = 0x2000},
+	    ResolvedFunction {.target = b, .address = 0x1000}, ResolvedFunction {.target = missing, .address = 0}};
 	const auto hooks = JoinResolvedFunctions(functions);
 	ASSERT_EQ(hooks.size(), 2u);
 	EXPECT_EQ(hooks[0].address, 0x1000u);
@@ -176,7 +177,8 @@ TEST(HookRules, RefusesAJoinWithDifferentParameterCounts)
 	using ts4_mod::loader::ResolvedFunction;
 	const auto a = *MakeFunctionTarget(TS4_MODULE_GAME, "A", "48 89 5C 24 08", 2);
 	const auto b = *MakeFunctionTarget(TS4_MODULE_GAME, "B", "48 89 5C 24 ??", 3);
-	const std::array functions {ResolvedFunction {a, 0x1000}, ResolvedFunction {b, 0x1000}};
+	const std::array functions {ResolvedFunction {.target = a, .address = 0x1000},
+	                            ResolvedFunction {.target = b, .address = 0x1000}};
 	const auto hooks = JoinResolvedFunctions(functions);
 	ASSERT_EQ(hooks.size(), 1u);
 	EXPECT_FALSE(hooks[0].error.empty());

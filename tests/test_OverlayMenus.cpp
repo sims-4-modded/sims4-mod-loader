@@ -135,6 +135,7 @@ struct Registrations
 [[nodiscard]] std::vector<std::string> MenuNames(const MenuSet& set)
 {
 	std::vector<std::string> names;
+	names.reserve(set.menus.size());
 	for (const auto& menu : set.menus)
 	{
 		names.push_back(menu.name);
@@ -145,6 +146,7 @@ struct Registrations
 [[nodiscard]] std::vector<size_t> ItemIds(const Menu& menu)
 {
 	std::vector<size_t> ids;
+	ids.reserve(menu.items.size());
 	for (const auto& item : menu.items)
 	{
 		ids.push_back(item.id);
@@ -156,7 +158,7 @@ struct Registrations
 
 TEST(OverlayMenus, EachItemGoesToTheMenuOfItsOwnerOrToTheMenuThatItNames)
 {
-	Registrations r;
+	const Registrations r;
 	FakeReader reader;
 	const auto bindings = r.Bindings();
 	const auto set = BuildMenus(r.registry, bindings, reader);
@@ -174,7 +176,7 @@ TEST(OverlayMenus, EachItemGoesToTheMenuOfItsOwnerOrToTheMenuThatItNames)
 
 TEST(OverlayMenus, ItemsGetTheValuesTheRangesAndTheHotkeys)
 {
-	Registrations r;
+	const Registrations r;
 	FakeReader reader;
 	const auto bindings = r.Bindings();
 	const auto set = BuildMenus(r.registry, bindings, reader);
@@ -210,7 +212,7 @@ TEST(OverlayMenus, ItemsGetTheValuesTheRangesAndTheHotkeys)
 
 TEST(OverlayMenus, AFailedCallKeepsTheItemWithItsDefaults)
 {
-	Registrations r;
+	const Registrations r;
 	FakeReader reader;
 	reader.failing = {r.cameraZoom, r.cameraReset, r.needsReadout};
 	const auto set = BuildMenus(r.registry, r.Bindings(), reader);
@@ -237,7 +239,7 @@ TEST(OverlayMenus, AFailedOwnerGivesNoItemsAndNoCalls)
 
 TEST(OverlayMenus, FieldValuesHasEachFieldOfAllMenus)
 {
-	Registrations r;
+	const Registrations r;
 	FakeReader reader;
 	OverlaySnapshot snapshot;
 	snapshot.menus = BuildMenus(r.registry, r.Bindings(), reader);

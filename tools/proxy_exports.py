@@ -130,7 +130,9 @@ def make_def(exports: List[Export]) -> str:
 
 
 def make_header(exports: List[Export]) -> str:
-    rows = "\n".join(f"    WinmmExport {{{json_text(export.name)}, {export.ordinal}}}," for export in exports)
+    rows = "\n".join(
+        f"    WinmmExport {{.name = {json_text(export.name)}, .ordinal = {export.ordinal}}}," for export in exports
+    )
     return f"""{HEADER}
 // The exports of the system {LIBRARY}.dll, in the order of ProxyStubs.asm. tools/proxy_exports.py makes this file from
 // the system DLL: do not change it by hand.

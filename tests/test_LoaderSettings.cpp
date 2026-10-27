@@ -140,7 +140,7 @@ TEST(LoaderSettings, RefusesATextSizeOutOfItsRange)
 
 TEST(LoaderSettings, OnlyTheHotkeysAndTheTextSizeChangeLive)
 {
-	LoaderSettings current;
+	const LoaderSettings current;
 	auto next = current;
 	next.overlay.fontScale = 2.0;
 	next.overlay.enabled = false;

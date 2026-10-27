@@ -45,7 +45,7 @@ TEST(Sha256, GivesTheSameChecksumForBytesInManyParts)
 		std::string text(length, '\0');
 		for (std::size_t i = 0; i < length; ++i)
 		{
-			text[i] = static_cast<char>(i * 7 + 3);
+			text[i] = static_cast<char>((i * 7) + 3);
 		}
 		Sha256 parts;
 		for (std::size_t start = 0; start < length; start += 13)

@@ -93,6 +93,7 @@ struct ProxyState
 };
 
 /// The one state object of the proxy. See `DllMain` for its lifetime.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): DllMain cannot get the state in another way.
 std::unique_ptr<ProxyState> s_state;
 
 struct ModuleFree
@@ -143,7 +144,7 @@ struct ModuleFree
 {
 	std::array<wchar_t, 32768> path {};
 	const auto length = GetModuleFileNameW(nullptr, path.data(), static_cast<DWORD>(path.size()));
-	return std::filesystem::path(std::wstring(path.data(), length));
+	return {std::wstring(path.data(), length)};
 }
 
 [[nodiscard]] std::string Utf8(const std::filesystem::path& path)
@@ -204,7 +205,7 @@ struct ModuleFree
 
 [[nodiscard]] std::string ModuleText(const wchar_t* name)
 {
-	const auto module = GetModuleHandleW(name);
+	auto* const module = GetModuleHandleW(name);
 	return module == nullptr ? std::string("not loaded yet")
 	                         : std::format("loaded at 0x{:x}", reinterpret_cast<std::uintptr_t>(module));
 }
@@ -368,6 +369,7 @@ void OnProcessExit()
 
 } // namespace ts4_mod::loader
 
+// NOLINTNEXTLINE(misc-use-internal-linkage): the C runtime calls DllMain by its name.
 BOOL WINAPI DllMain(HINSTANCE instance, DWORD reason, LPVOID reserved)
 {
 	if (reason == DLL_PROCESS_DETACH)

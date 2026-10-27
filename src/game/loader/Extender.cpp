@@ -138,9 +138,9 @@ protected:
 	{
 		const std::string_view text(message.payload.data(), message.payload.size());
 		const std::string_view logger(message.logger_name.data(), message.logger_name.size());
-		const auto level = message.level >= spdlog::level::err    ? "error: "
-		                   : message.level == spdlog::level::warn ? "warning: "
-		                                                          : "";
+		const auto* const level = message.level >= spdlog::level::err    ? "error: "
+		                          : message.level == spdlog::level::warn ? "warning: "
+		                                                                 : "";
 		_log.Write(std::format("{}{}{}", logger.empty() ? std::string() : std::format("{}: ", logger), level, text));
 	}
 	void flush_() override {}
@@ -239,7 +239,7 @@ struct LoaderState final: HostServices
 	void Log(OwnerId owner, Ts4LogLevel level, std::string_view text) override
 	{
 		const auto who = owner == k_LoaderOwner ? std::string("extender") : registry.OwnerName(owner);
-		const auto prefix = level >= TS4_LOG_ERROR ? "error: " : level == TS4_LOG_WARN ? "warning: " : "";
+		const auto* const prefix = level >= TS4_LOG_ERROR ? "error: " : level == TS4_LOG_WARN ? "warning: " : "";
 		log.Info("[{}] {}{}", who, prefix, text);
 	}
 	ts4::Result<void> PostTask(OwnerId owner, Ts4TaskFn task, void* user) override;
@@ -747,23 +747,28 @@ void RegisterLoaderItems(LoaderState& state)
 	};
 	// The default hotkeys are the hotkeys of the Masters of Albion mod loader.
 	const std::array actions {
-	    LoaderAction {"reloadSettings", "Ctrl+Shift+F10",
-	                  [](void* user) { (void)ApplyReload(*static_cast<LoaderState*>(user), "hotkey"); }},
-	    LoaderAction {"showSettings", "Ctrl+Shift+F11",
-	                  [](void* user) {
-		                  auto& s = *static_cast<LoaderState*>(user);
-		                  Notify(s, SettingsSummary(s));
-	                  }},
-	    LoaderAction {"toggleOverlay", "Ctrl+Shift+F4",
-	                  [](void* user) {
-		                  auto& s = *static_cast<LoaderState*>(user);
-		                  if (!s.overlay)
-		                  {
-			                  Notify(s, "Menu bar: not ready (see the log)");
-			                  return;
-		                  }
-		                  s.overlayPin = true;
-	                  }},
+	    LoaderAction {.hotkey = "reloadSettings",
+	                  .defaultHotkey = "Ctrl+Shift+F10",
+	                  .run = [](void* user) { (void)ApplyReload(*static_cast<LoaderState*>(user), "hotkey"); }},
+	    LoaderAction {.hotkey = "showSettings",
+	                  .defaultHotkey = "Ctrl+Shift+F11",
+	                  .run =
+	                      [](void* user) {
+		                      auto& s = *static_cast<LoaderState*>(user);
+		                      Notify(s, SettingsSummary(s));
+	                      }},
+	    LoaderAction {.hotkey = "toggleOverlay",
+	                  .defaultHotkey = "Ctrl+Shift+F4",
+	                  .run =
+	                      [](void* user) {
+		                      auto& s = *static_cast<LoaderState*>(user);
+		                      if (!s.overlay)
+		                      {
+			                      Notify(s, "Menu bar: not ready (see the log)");
+			                      return;
+		                      }
+		                      s.overlayPin = true;
+	                      }},
 	};
 	for (const auto& action : actions)
 	{
@@ -1110,63 +1115,76 @@ void RegisterLoaderQueries(LoaderState& state)
 		Run run;
 	};
 	const std::array items {
-	    Item {"mods.status", "The state of the extender, of its parts and of each mod.",
-	          [](LoaderState& s, const nlohmann::json& /*params*/) {
-		          return nlohmann::json {
-		              {"version", s.start.version},
-		              {"gameVersion", s.start.gameVersion},
-		              {"settings", Utf8(s.start.folders.settingsFile)},
-		              {"tickHook", s.settings.tickHook},
-		              {"live", s.live},
-		              {"mods", ReadStatuses(s, true)},
-		              {"dlls", DescribeDlls(s)},
-		              {"overlay", s.overlay ? s.overlay->Describe() : nlohmann::json()},
-		          };
-	          }},
-	    Item {"mods.list", "The DLL mods, as the list of the mods shows them.",
-	          [](LoaderState& s, const nlohmann::json& /*params*/) {
-		          return nlohmann::json {{"folder", Utf8(mods::ModDllFolder(s.start.folders.settingsFolder))},
-		                                 {"dlls", DescribeDlls(s)}};
-	          }},
-	    Item {"mods.settings", "The settings file and the settings that the extender uses now.",
-	          [](LoaderState& s, const nlohmann::json& /*params*/) { return DescribeSettings(s); }},
-	    Item {"mods.reload", "Read mods.json again and give each mod its objects.",
-	          [](LoaderState& s, const nlohmann::json& /*params*/) { return ApplyReload(s, "query"); }},
-	    Item {"hooks.status", "The hooks of the extender and the count of the tasks that wait.",
-	          [](LoaderState& s, const nlohmann::json& /*params*/) {
-		          auto status = DescribeHooks(s);
-		          status["pendingTasks"] = s.tasks.Pending();
-		          return status;
-	          }},
-	    Item {"overlay.pin", "Pin the menu bar as its hotkey does. Parameter: pinned (true or false).",
-	          [](LoaderState& s, const nlohmann::json& params) {
-		          if (!s.overlay)
-		          {
-			          throw std::runtime_error("the menu bar is not installed (see the log)");
-		          }
-		          const bool pinned = params.value("pinned", true);
-		          if (s.overlay->Describe().value("pinned", false) != pinned)
-		          {
-			          s.overlayPin = true;
-		          }
-		          return nlohmann::json {{"pinned", pinned}};
-	          }},
-	    Item {"overlay.edit",
-	          "Change a field as the menu bar does: section, key, value and save. Or turn a DLL mod on or off by its id "
-	          "(mod) or its file name (dll) with enabled.",
-	          [](LoaderState& s, const nlohmann::json& params) { return EditAsMenuBar(s, params); }},
-	    Item {"overlay.probe", "Make a new swap chain, as the game does when it changes the display mode.",
-	          [](LoaderState& s, const nlohmann::json& /*params*/) {
-		          if (!s.overlay || s.overlay->Hooks() == nullptr)
-		          {
-			          throw std::runtime_error("the menu bar is not installed (see the log)");
-		          }
-		          if (auto probe = s.overlay->Hooks()->ProbeAgain(); !probe)
-		          {
-			          throw std::runtime_error(probe.GetError().message);
-		          }
-		          return nlohmann::json {{"probe", true}};
-	          }},
+	    Item {.name = "mods.status",
+	          .help = "The state of the extender, of its parts and of each mod.",
+	          .run =
+	              [](LoaderState& s, const nlohmann::json& /*params*/) {
+		              return nlohmann::json {
+		                  {"version", s.start.version},
+		                  {"gameVersion", s.start.gameVersion},
+		                  {"settings", Utf8(s.start.folders.settingsFile)},
+		                  {"tickHook", s.settings.tickHook},
+		                  {"live", s.live},
+		                  {"mods", ReadStatuses(s, true)},
+		                  {"dlls", DescribeDlls(s)},
+		                  {"overlay", s.overlay ? s.overlay->Describe() : nlohmann::json()},
+		              };
+	              }},
+	    Item {.name = "mods.list",
+	          .help = "The DLL mods, as the list of the mods shows them.",
+	          .run =
+	              [](LoaderState& s, const nlohmann::json& /*params*/) {
+		              return nlohmann::json {{"folder", Utf8(mods::ModDllFolder(s.start.folders.settingsFolder))},
+		                                     {"dlls", DescribeDlls(s)}};
+	              }},
+	    Item {.name = "mods.settings",
+	          .help = "The settings file and the settings that the extender uses now.",
+	          .run = [](LoaderState& s, const nlohmann::json& /*params*/) { return DescribeSettings(s); }},
+	    Item {.name = "mods.reload",
+	          .help = "Read mods.json again and give each mod its objects.",
+	          .run = [](LoaderState& s, const nlohmann::json& /*params*/) { return ApplyReload(s, "query"); }},
+	    Item {.name = "hooks.status",
+	          .help = "The hooks of the extender and the count of the tasks that wait.",
+	          .run =
+	              [](LoaderState& s, const nlohmann::json& /*params*/) {
+		              auto status = DescribeHooks(s);
+		              status["pendingTasks"] = s.tasks.Pending();
+		              return status;
+	              }},
+	    Item {.name = "overlay.pin",
+	          .help = "Pin the menu bar as its hotkey does. Parameter: pinned (true or false).",
+	          .run =
+	              [](LoaderState& s, const nlohmann::json& params) {
+		              if (!s.overlay)
+		              {
+			              throw std::runtime_error("the menu bar is not installed (see the log)");
+		              }
+		              const bool pinned = params.value("pinned", true);
+		              if (s.overlay->Describe().value("pinned", false) != pinned)
+		              {
+			              s.overlayPin = true;
+		              }
+		              return nlohmann::json {{"pinned", pinned}};
+	              }},
+	    Item {.name = "overlay.edit",
+	          .help =
+	              "Change a field as the menu bar does: section, key, value and save. Or turn a DLL mod on or off by its id "
+	              "(mod) or its file name (dll) with enabled.",
+	          .run = [](LoaderState& s, const nlohmann::json& params) { return EditAsMenuBar(s, params); }},
+	    Item {.name = "overlay.probe",
+	          .help = "Make a new swap chain, as the game does when it changes the display mode.",
+	          .run =
+	              [](LoaderState& s, const nlohmann::json& /*params*/) {
+		              if (!s.overlay || s.overlay->Hooks() == nullptr)
+		              {
+			              throw std::runtime_error("the menu bar is not installed (see the log)");
+		              }
+		              if (auto probe = s.overlay->Hooks()->ProbeAgain(); !probe)
+		              {
+			              throw std::runtime_error(probe.GetError().message);
+		              }
+		              return nlohmann::json {{"probe", true}};
+	              }},
 	};
 	const auto trampoline = [](void* user, const char* params, Ts4Text* result) -> uint32_t {
 		auto& query = *static_cast<LoaderQuery*>(user);
@@ -1254,7 +1272,7 @@ void InstallOverlay(LoaderState& state)
 		LoaderState* state;
 		std::unique_ptr<Overlay> overlay;
 		std::string error;
-	} call {&state, nullptr, {}};
+	} call {.state = &state, .overlay = nullptr, .error = {}};
 	const auto work = [](void* context) {
 		auto& c = *static_cast<Call*>(context);
 		auto& s = *c.state;
@@ -1706,10 +1724,10 @@ void WatchModuleLoads(LoaderState& state)
 		state.log.Info("modules: Simulation_x64.dll is already loaded; the extender cannot tell its thread");
 		return;
 	}
-	const auto ntdll = GetModuleHandleW(L"ntdll.dll");
-	const auto registerFunction = ntdll == nullptr ? nullptr
-	                                               : reinterpret_cast<RegisterDllNotification>(reinterpret_cast<void*>(
-	                                                     GetProcAddress(ntdll, "LdrRegisterDllNotification")));
+	auto* const ntdll = GetModuleHandleW(L"ntdll.dll");
+	const auto registerFunction =
+	    ntdll == nullptr ? nullptr
+	                     : reinterpret_cast<RegisterDllNotification>(GetProcAddress(ntdll, "LdrRegisterDllNotification"));
 	if (registerFunction == nullptr || registerFunction(0, &OnDllNotification, &state.loads, &state.loads.cookie) < 0)
 	{
 		state.log.Info("modules: warning: the DLL notification of Windows is not available; the log does not tell the "

@@ -5,6 +5,7 @@
 #include <cstdint>
 
 #include <string>
+#include <string_view>
 
 #include <core/HostTable.h>
 #include <gtest/gtest.h>
@@ -41,7 +42,7 @@ void Assign(void* context, const char* utf8, size_t size)
 TEST(HostTable, GivesTheTextsAndLogsWithTheOwner)
 {
 	FakeServices services;
-	HostTable table(services, 7, Info());
+	const HostTable table(services, 7, Info());
 	const auto& api = table.Api();
 	EXPECT_EQ(api.apiVersion, TS4_MOD_API_VERSION);
 	EXPECT_EQ(api.size, sizeof(Ts4HostApi));
@@ -63,7 +64,7 @@ TEST(HostTable, GivesTheTextsAndLogsWithTheOwner)
 TEST(HostTable, AddsAFunctionCallbackWithTheNormalSignature)
 {
 	FakeServices services;
-	HostTable table(services, 3, Info());
+	const HostTable table(services, 3, Info());
 	const auto& api = table.Api();
 	const Ts4FunctionDesc tick {
 	    .module = TS4_MODULE_SIMULATION, .name = "Tick", .signature = "48 89 5c 24 ? 57", .parameterCount = 2};
@@ -110,10 +111,10 @@ TEST(HostTable, ListsAndCallsTheQueriesOfAllOwners)
 {
 	FakeServices services;
 	services.registry.SetOwnerName(2, "Needs");
-	HostTable table(services, 2, Info());
+	const HostTable table(services, 2, Info());
 	const auto& api = table.Api();
-	static const char k_Prefix[] = "answer:";
-	EXPECT_EQ(api.addQuery(api.context, "sims.needs", "The needs.", &Query, const_cast<char*>(k_Prefix)), 1u);
+	static constexpr std::string_view k_Prefix = "answer:";
+	EXPECT_EQ(api.addQuery(api.context, "sims.needs", "The needs.", &Query, const_cast<char*>(k_Prefix.data())), 1u);
 	std::string text;
 	Ts4Text target {.context = &text, .assign = &Assign};
 	api.listQueries(api.context, &target);

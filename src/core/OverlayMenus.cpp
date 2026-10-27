@@ -51,7 +51,7 @@ MenuSet BuildMenus(const loader::ModRegistry& registry, std::span<const loader::
 	{
 		if (!registry.Failed(field.owner))
 		{
-			items.push_back({field.owner, field.menu, ReadField(field, reader)});
+			items.push_back({.owner = field.owner, .menu = field.menu, .item = ReadField(field, reader)});
 		}
 	}
 	std::map<size_t, std::string> hotkeys;
@@ -75,7 +75,7 @@ MenuSet BuildMenus(const loader::ModRegistry& registry, std::span<const loader::
 		{
 			item.enabled = reader.ActionEnabled(action);
 		}
-		items.push_back({action.owner, action.menu, std::move(item)});
+		items.push_back({.owner = action.owner, .menu = action.menu, .item = std::move(item)});
 	}
 	for (const auto& readout : registry.Readouts())
 	{
@@ -84,11 +84,12 @@ MenuSet BuildMenus(const loader::ModRegistry& registry, std::span<const loader::
 			continue;
 		}
 		const auto text = reader.ReadReadout(readout);
-		items.push_back({readout.owner, readout.menu,
-		                 MenuItem {.kind = MenuItem::Kind::Readout,
-		                           .id = readout.id,
-		                           .group = readout.group,
-		                           .text = text.value_or(std::string())}});
+		items.push_back({.owner = readout.owner,
+		                 .menu = readout.menu,
+		                 .item = MenuItem {.kind = MenuItem::Kind::Readout,
+		                                   .id = readout.id,
+		                                   .group = readout.group,
+		                                   .text = text.value_or(std::string())}});
 	}
 	// The order of the owners for the menus, and the order of the registrations in each menu. The ids of one registry
 	// increase with each registration.

@@ -33,8 +33,8 @@ using FileHandle = std::unique_ptr<void, HandleCloser>;
 /// Open the log file to add lines at its end. Other processes can read and write the file at the same time.
 [[nodiscard]] FileHandle OpenForAppend(const wchar_t* path)
 {
-	const auto handle = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-	                                OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+	auto* const handle = CreateFileW(path, FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+	                                 OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
 	return FileHandle(handle == INVALID_HANDLE_VALUE ? nullptr : handle);
 }
 
@@ -65,7 +65,7 @@ LoaderLog::LoaderLog(std::filesystem::path path)
 
 void LoaderLog::RotateIfLarge()
 {
-	const std::lock_guard lock(_mutex);
+	const std::scoped_lock lock(_mutex);
 	std::error_code error;
 	if (std::filesystem::file_size(_path, error) > k_MaxSize && !error)
 	{
@@ -81,7 +81,7 @@ void LoaderLog::Write(std::string_view text)
 	std::string line(LinePrefix(prefix));
 	line.append(text);
 	line.push_back('\n');
-	const std::lock_guard lock(_mutex);
+	const std::scoped_lock lock(_mutex);
 	if (const auto file = OpenForAppend(_path.c_str()))
 	{
 		WriteAll(file.get(), line);

@@ -1,15 +1,18 @@
-HeaderFilterRegex: '^[^_]*\.h$'
+# Check the headers of the project. Do not check the headers of common, ImGui, MinHook and vcpkg.
+HeaderFilterRegex: '.*[/\\](src|tests|imgui_config)[/\\].*\.h$'
+ExcludeHeaderFilterRegex: '.*[/\\](external|build|_deps|vcpkg_installed)[/\\].*'
 Checks: >-
   -*,
   clang-analyzer-*,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
   modernize-*,
   -modernize-use-trailing-return-type,
   -modernize-use-std-print,
-  cppcoreguidelines-pro-bounds-constant-array-index,
   cppcoreguidelines-avoid-non-const-global-variables,
   performance-*,
   -performance-enum-size,
   -performance-unnecessary-value-param,
+  -performance-no-int-to-ptr,
   misc-*,
   -misc-non-private-member-variables-in-classes,
   -misc-redundant-expression,
@@ -20,6 +23,7 @@ Checks: >-
   -bugprone-narrowing-conversions,
   -bugprone-lambda-function-name,
   -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-empty-catch,
   google-*,
   -google-build-using-namespace,
   -google-runtime-references,
@@ -30,7 +34,16 @@ Checks: >-
   -readability-make-member-function-const,
   -readability-convert-member-functions-to-static,
   -readability-named-parameter,
-  -readability-identifier-length
+  -readability-identifier-length,
+  -readability-redundant-member-init,
+  -readability-avoid-nested-conditional-operator
+# Why this file disables a check (one line each):
+# - clang-analyzer-optin.core.EnumCastOutOfRange: the MSVC flag enums and the tests of bad enum values start it.
+# - performance-no-int-to-ptr: the extender calculates the addresses in the game from the base of a module.
+# - cppcoreguidelines-pro-bounds-constant-array-index (not on): it needs gsl::at, and the project has no GSL.
+# - bugprone-empty-catch: an empty catch (...) stops an exception before it goes into the game. A comment tells why.
+# - readability-redundant-member-init: each member has an initializer, so a designated initializer need not set all.
+# - readability-avoid-nested-conditional-operator: one condition on each line is easy to read.
 CheckOptions:
   - key: readability-function-cognitive-complexity.Threshold
     value: 35 # TODO: bring that number down to 25
@@ -50,8 +63,9 @@ CheckOptions:
     value: 'Disassembly_[^_]*|load'
   - key: readability-identifier-naming.VariableCase
     value: camelBack
+  # The state of a hook in an unnamed namespace has the prefix s_ (static), t_ (thread_local) or g_ (global).
   - key: readability-identifier-naming.VariableIgnoredRegexp
-    value: '^u_[^_]*'
+    value: '^([gstu]_[a-zA-Z0-9]*)$'
   - key: readability-identifier-naming.ParameterCase
     value: camelBack
   - key: readability-identifier-naming.MemberCase
@@ -60,3 +74,15 @@ CheckOptions:
     value: _
   - key: readability-identifier-naming.ProtectedMemberPrefix
     value: _
+  # The analysis of the pointee gives false findings for COM pointers and for the values of std::atomic.
+  - key: misc-const-correctness.AnalyzePointers
+    value: false
+  # The code casts a value to void when it keeps a module or an object in memory on purpose.
+  - key: bugprone-unused-return-value.AllowCastToVoid
+    value: true
+  # Only a full memory makes these exceptions. The extender does not try to continue after them.
+  - key: bugprone-exception-escape.IgnoredExceptions
+    value: 'bad_alloc,bad_array_new_length,length_error'
+  # The negation of a range check also refuses NaN. The form of De Morgan does not.
+  - key: readability-simplify-boolean-expr.SimplifyDeMorgan
+    value: false

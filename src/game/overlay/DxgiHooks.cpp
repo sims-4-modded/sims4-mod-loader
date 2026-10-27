@@ -38,6 +38,7 @@ using Present1Function = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain1*, UINT, UIN
 using ResizeBuffers1Function = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain3*, UINT, UINT, UINT, DXGI_FORMAT, UINT, const UINT*,
                                                            IUnknown* const*);
 
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables): the hook functions cannot get their state in another way.
 /// The hooks of the process. A code pointer cannot carry data, so the hook functions find the hooks here.
 std::atomic<DxgiHooks*> s_hooks = nullptr;
 /// The trampolines to the original functions. The install sets each one time, before the hook is on the code.
@@ -49,6 +50,7 @@ std::atomic<ResizeBuffers1Function> s_originalResizeBuffers1 = nullptr;
 thread_local HookDepth t_depth;
 /// The hook calls in progress on all threads. The destructor of the hooks waits until no call uses the listener.
 std::atomic<int> s_activeCalls = 0;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 /// The longest time that the destructor waits for the hook calls in progress.
 constexpr auto k_CallWaitTimeout = std::chrono::seconds(1);
@@ -63,7 +65,7 @@ public:
 	ActiveCall& operator=(const ActiveCall&) = delete;
 };
 
-constexpr wchar_t k_WindowClass[] = L"Ts4ModOverlayProbe";
+constexpr const wchar_t* k_WindowClass = L"Ts4ModOverlayProbe";
 constexpr UINT k_ProbeSize = 64;
 
 // Each hook uses only a few bytes of stack: the render thread of the game calls it in each frame. While the menu bar
@@ -168,8 +170,8 @@ template <typename T>
 [[nodiscard]] HINSTANCE OwnModule()
 {
 	HMODULE module = nullptr;
-	constexpr DWORD flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
-	(void)GetModuleHandleExW(flags, reinterpret_cast<LPCWSTR>(&OwnModule), &module);
+	constexpr DWORD k_Flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+	(void)GetModuleHandleExW(k_Flags, reinterpret_cast<LPCWSTR>(&OwnModule), &module);
 	return module;
 }
 
@@ -179,10 +181,10 @@ class ProbeWindow
 public:
 	ProbeWindow()
 	{
-		WNDCLASSEXW windowClass {.cbSize = sizeof(WNDCLASSEXW),
-		                         .lpfnWndProc = DefWindowProcW,
-		                         .hInstance = OwnModule(),
-		                         .lpszClassName = k_WindowClass};
+		const WNDCLASSEXW windowClass {.cbSize = sizeof(WNDCLASSEXW),
+		                               .lpfnWndProc = DefWindowProcW,
+		                               .hInstance = OwnModule(),
+		                               .lpszClassName = k_WindowClass};
 		_class = RegisterClassExW(&windowClass);
 		_window = CreateWindowExW(0, k_WindowClass, L"", WS_OVERLAPPEDWINDOW, 0, 0, k_ProbeSize, k_ProbeSize, nullptr, nullptr,
 		                          windowClass.hInstance, nullptr);
@@ -212,8 +214,8 @@ private:
 [[nodiscard]] HMODULE ModuleOf(const void* address)
 {
 	HMODULE module = nullptr;
-	constexpr DWORD flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
-	if (address == nullptr || !GetModuleHandleExW(flags, static_cast<LPCWSTR>(address), &module))
+	constexpr DWORD k_Flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+	if (address == nullptr || (GetModuleHandleExW(k_Flags, static_cast<LPCWSTR>(address), &module) == 0))
 	{
 		return nullptr;
 	}
@@ -249,7 +251,7 @@ void LogStep(spdlog::logger& log, spdlog::format_string_t<Args...> format, Args&
 /// The game already loaded d3d11.dll; the probe gets the function from that module, and does not link to it.
 [[nodiscard]] ts4::Result<ComPtr<IDXGISwapChain>> ProbeD3D11(HWND window)
 {
-	const auto module = LoadLibraryW(L"d3d11.dll");
+	auto* const module = LoadLibraryW(L"d3d11.dll");
 	const auto create =
 	    module == nullptr
 	        ? nullptr
@@ -300,13 +302,13 @@ void LogStep(spdlog::logger& log, spdlog::format_string_t<Args...> format, Args&
 	{
 		std::memcpy(&displacement, code + 2, sizeof(displacement));
 		const void* target = nullptr;
-		std::memcpy(&target, code + 6 + displacement, sizeof(target));
+		std::memcpy(static_cast<void*>(&target), code + 6 + displacement, sizeof(target));
 		return target;
 	}
 	if (code[0] == 0x48 && code[1] == 0xB8 && code[10] == 0xFF && code[11] == 0xE0)
 	{
 		const void* target = nullptr;
-		std::memcpy(&target, code + 2, sizeof(target));
+		std::memcpy(static_cast<void*>(&target), code + 2, sizeof(target));
 		return target;
 	}
 	return nullptr;
@@ -444,7 +446,7 @@ ts4::Result<std::unique_ptr<DxgiHooks>> DxgiHooks::Install(SwapChainListener& li
 
 void DxgiHooks::HookFunctions(const Vtables& vtables)
 {
-	const auto vtableModule = ModuleOf(vtables.swapChain);
+	auto* const vtableModule = ModuleOf(static_cast<const void*>(vtables.swapChain));
 	_module = ModuleName(vtableModule);
 	const auto ownHooks = OwnHooks();
 	struct Target
@@ -456,12 +458,26 @@ void DxgiHooks::HookFunctions(const Vtables& vtables)
 		std::unique_ptr<CodeHook>* hook;
 	};
 	const std::array targets {
-	    Target {"Present", vtables.swapChain, k_Present, reinterpret_cast<void*>(&HookPresent), &_present},
-	    Target {"ResizeBuffers", vtables.swapChain, k_ResizeBuffers, reinterpret_cast<void*>(&HookResizeBuffers),
-	            &_resizeBuffers},
-	    Target {"Present1", vtables.swapChain1, k_Present1, reinterpret_cast<void*>(&HookPresent1), &_present1},
-	    Target {"ResizeBuffers1", vtables.swapChain3, k_ResizeBuffers1, reinterpret_cast<void*>(&HookResizeBuffers1),
-	            &_resizeBuffers1},
+	    Target {.name = "Present",
+	            .vtable = vtables.swapChain,
+	            .slot = k_Present,
+	            .detour = reinterpret_cast<void*>(&HookPresent),
+	            .hook = &_present},
+	    Target {.name = "ResizeBuffers",
+	            .vtable = vtables.swapChain,
+	            .slot = k_ResizeBuffers,
+	            .detour = reinterpret_cast<void*>(&HookResizeBuffers),
+	            .hook = &_resizeBuffers},
+	    Target {.name = "Present1",
+	            .vtable = vtables.swapChain1,
+	            .slot = k_Present1,
+	            .detour = reinterpret_cast<void*>(&HookPresent1),
+	            .hook = &_present1},
+	    Target {.name = "ResizeBuffers1",
+	            .vtable = vtables.swapChain3,
+	            .slot = k_ResizeBuffers1,
+	            .detour = reinterpret_cast<void*>(&HookResizeBuffers1),
+	            .hook = &_resizeBuffers1},
 	};
 	// The functions that have a hook now. Two interfaces can share one function; the second then uses the first hook.
 	std::vector<void*> hooked;
@@ -472,7 +488,7 @@ void DxgiHooks::HookFunctions(const Vtables& vtables)
 			_notes.push_back(std::format("no hook on {}: the swap chain does not have its interface", target.name));
 			continue;
 		}
-		if (ModuleOf(target.vtable) != vtableModule)
+		if (ModuleOf(static_cast<const void*>(target.vtable)) != vtableModule)
 		{
 			_notes.push_back(std::format("no hook on {}: its vtable is not in {}", target.name, _module));
 			continue;
@@ -483,7 +499,7 @@ void DxgiHooks::HookFunctions(const Vtables& vtables)
 			LogStep(_log, "menu bar: {} is the same function as an earlier hook", target.name);
 			continue;
 		}
-		const auto functionModule = ModuleOf(function);
+		auto* const functionModule = ModuleOf(function);
 		const auto error = CheckHookTarget(reinterpret_cast<uintptr_t>(function), ownHooks,
 		                                   vtableModule != nullptr && functionModule == vtableModule);
 		LogStep(_log, "menu bar: the vtable is in {}; the slot of {} points to {}", _module, target.name,

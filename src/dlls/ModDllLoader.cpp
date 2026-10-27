@@ -177,7 +177,7 @@ const ModDll& ModDllLoader::Load(const std::filesystem::path& path, std::span<co
 	mod.sha256 = std::move(*checksum);
 
 	// Only the folder of the DLL and the system folders give the DLLs that the mod needs.
-	const auto module =
+	auto* const module =
 	    LoadLibraryExW(path.c_str(), nullptr, LOAD_LIBRARY_SEARCH_DLL_LOAD_DIR | LOAD_LIBRARY_SEARCH_DEFAULT_DIRS);
 	if (module == nullptr)
 	{
@@ -293,7 +293,7 @@ void ModDllLoader::ShutdownAll()
 		{
 			continue;
 		}
-		if (!GuardedCall([](void* c) { (*static_cast<Ts4ModShutdownFn*>(c))(); }, &mod->shutdown, _filter))
+		if (!GuardedCall([](void* c) { (*static_cast<Ts4ModShutdownFn*>(c))(); }, static_cast<void*>(&mod->shutdown), _filter))
 		{
 			_services.Log(mod->owner, TS4_LOG_ERROR, std::format("an access violation in Ts4ModShutdown of {}", mod->file));
 		}

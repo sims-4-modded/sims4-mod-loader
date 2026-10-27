@@ -34,6 +34,7 @@ struct State
 };
 
 /// The one state object of the DLL.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the exports cannot get the state in another way.
 std::unique_ptr<State> s_state;
 
 [[nodiscard]] const char* ModId()
@@ -149,6 +150,6 @@ __declspec(dllexport) void Ts4ModShutdown()
 /// For the test: the count of the calls of the function callback and of the action.
 __declspec(dllexport) int TestModCalls()
 {
-	return s_state ? s_state->calls * 1000 + s_state->actions : -1;
+	return s_state ? (s_state->calls * 1000) + s_state->actions : -1;
 }
 }

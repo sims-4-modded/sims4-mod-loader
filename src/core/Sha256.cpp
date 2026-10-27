@@ -41,8 +41,8 @@ void Sha256::Compress(std::span<const std::uint8_t, 64> block)
 	std::array<std::uint32_t, 64> words {};
 	for (std::size_t i = 0; i < 16; ++i)
 	{
-		words[i] = static_cast<std::uint32_t>(block[i * 4]) << 24 | static_cast<std::uint32_t>(block[i * 4 + 1]) << 16 |
-		           static_cast<std::uint32_t>(block[i * 4 + 2]) << 8 | static_cast<std::uint32_t>(block[i * 4 + 3]);
+		words[i] = static_cast<std::uint32_t>(block[i * 4]) << 24 | static_cast<std::uint32_t>(block[(i * 4) + 1]) << 16 |
+		           static_cast<std::uint32_t>(block[(i * 4) + 2]) << 8 | static_cast<std::uint32_t>(block[(i * 4) + 3]);
 	}
 	for (std::size_t i = 16; i < 64; ++i)
 	{
@@ -110,9 +110,9 @@ Sha256::Digest Sha256::Finish()
 	for (std::size_t i = 0; i < 8; ++i)
 	{
 		digest[i * 4] = static_cast<std::uint8_t>(_state[i] >> 24);
-		digest[i * 4 + 1] = static_cast<std::uint8_t>(_state[i] >> 16);
-		digest[i * 4 + 2] = static_cast<std::uint8_t>(_state[i] >> 8);
-		digest[i * 4 + 3] = static_cast<std::uint8_t>(_state[i]);
+		digest[(i * 4) + 1] = static_cast<std::uint8_t>(_state[i] >> 16);
+		digest[(i * 4) + 2] = static_cast<std::uint8_t>(_state[i] >> 8);
+		digest[(i * 4) + 3] = static_cast<std::uint8_t>(_state[i]);
 	}
 	*this = Sha256();
 	return digest;

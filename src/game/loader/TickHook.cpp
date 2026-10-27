@@ -19,6 +19,7 @@ using NativeFunction = std::uintptr_t (*)(std::uintptr_t, std::uintptr_t, std::u
 /// The one bootstrap hook. MinHook calls the fixed function `Detour`, which cannot carry data, so the hook finds its
 /// object here. `Install` sets it before the hook works, and nothing clears it, because the object lives until the
 /// process stops.
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables): the detour cannot get its state in another way.
 std::atomic<BootstrapHook*> s_hook = nullptr;
 
 [[nodiscard]] MH_STATUS StartMinHook()

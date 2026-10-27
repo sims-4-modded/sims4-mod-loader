@@ -21,7 +21,7 @@ ts4::Result<std::unique_ptr<OverlayRenderer>> OverlayRenderer::Create(IDXGISwapC
 		return ts4::MakeError("the swap chain has no Direct3D 11 device");
 	}
 	renderer->_device->GetImmediateContext(&renderer->_context);
-	if (!renderer->_context || !ImGui_ImplDX11_Init(renderer->_device.Get(), renderer->_context.Get()))
+	if ((renderer->_context == nullptr) || !ImGui_ImplDX11_Init(renderer->_device.Get(), renderer->_context.Get()))
 	{
 		return ts4::MakeError("the Direct3D 11 backend of ImGui did not start");
 	}
@@ -45,7 +45,7 @@ void OverlayRenderer::NewFrame()
 
 RenderResult OverlayRenderer::Render(IDXGISwapChain* swapChain, ImDrawData* drawData)
 {
-	if (!_target)
+	if (_target == nullptr)
 	{
 		ComPtr<ID3D11Texture2D> buffer;
 		if (FAILED(swapChain->GetBuffer(0, IID_PPV_ARGS(&buffer))) ||
@@ -58,11 +58,11 @@ RenderResult OverlayRenderer::Render(IDXGISwapChain* swapChain, ImDrawData* draw
 	ComPtr<ID3D11RenderTargetView> gameTarget;
 	ComPtr<ID3D11DepthStencilView> gameDepth;
 	_context->OMGetRenderTargets(1, &gameTarget, &gameDepth);
-	ID3D11RenderTargetView* targets[] = {_target.Get()};
-	_context->OMSetRenderTargets(1, targets, nullptr);
+	ID3D11RenderTargetView* const target = _target.Get();
+	_context->OMSetRenderTargets(1, &target, nullptr);
 	ImGui_ImplDX11_RenderDrawData(drawData);
-	ID3D11RenderTargetView* restored[] = {gameTarget.Get()};
-	_context->OMSetRenderTargets(1, restored, gameDepth.Get());
+	ID3D11RenderTargetView* const restored = gameTarget.Get();
+	_context->OMSetRenderTargets(1, &restored, gameDepth.Get());
 	return RenderResult::Drawn;
 }
 

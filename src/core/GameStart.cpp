@@ -87,7 +87,7 @@ ts4::Result<std::vector<PeSection>> ReadPeSections(std::span<const std::byte> he
 	std::vector<PeSection> sections;
 	for (std::size_t i = 0; i < *sectionCount; ++i)
 	{
-		const std::size_t entry = table + i * k_SectionHeaderSize;
+		const std::size_t entry = table + (i * k_SectionHeaderSize);
 		const auto virtualSize = ReadAt<std::uint32_t>(headers, entry + k_SectionVirtualSizeField);
 		const auto virtualAddress = ReadAt<std::uint32_t>(headers, entry + k_SectionVirtualAddressField);
 		if (!virtualSize || !virtualAddress)

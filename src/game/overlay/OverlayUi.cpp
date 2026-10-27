@@ -388,7 +388,8 @@ void DrawOverlayMenuBar(const OverlayUiFrame& frame)
 	DrawHelpMenu(frame);
 	const auto summary =
 	    std::format("{} mods{}", frame.snapshot.menus.menus.size(), Flag(frame.overlayStatus, "pinned") ? "  (pinned)" : "");
-	ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(summary.c_str()).x - ImGui::GetStyle().ItemSpacing.x * 2.0f);
+	ImGui::SameLine(ImGui::GetWindowWidth() - ImGui::CalcTextSize(summary.c_str()).x -
+	                (ImGui::GetStyle().ItemSpacing.x * 2.0f));
 	ImGui::TextDisabled("%s", summary.c_str());
 	ImGui::EndMainMenuBar();
 }

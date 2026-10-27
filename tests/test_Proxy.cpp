@@ -40,7 +40,7 @@ using Module = std::unique_ptr<std::remove_pointer_t<HMODULE>, ModuleFree>;
 template <typename Function>
 [[nodiscard]] Function Find(HMODULE module, const char* name)
 {
-	return reinterpret_cast<Function>(reinterpret_cast<void*>(GetProcAddress(module, name)));
+	return reinterpret_cast<Function>(GetProcAddress(module, name));
 }
 
 /// The exports of a loaded module by their ordinals. An export with no name has an empty name.

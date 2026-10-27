@@ -27,10 +27,12 @@ namespace ts4_mod::overlay
 
 namespace
 {
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables): the window procedure cannot get its state in another way.
 /// The menu bar of the process. The window procedure is a plain function, so it finds the menu bar here.
 std::atomic<Overlay*> s_overlay = nullptr;
 /// The window procedure of the game, which the menu bar calls for each message.
 std::atomic<WNDPROC> s_gameWindowProc = nullptr;
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 /// The longest time that a thread waits for the ImGui context. A longer wait skips the work, so that no thread of the
 /// game stops.
@@ -68,7 +70,7 @@ LRESULT CALLBACK OverlayWindowProc(HWND window, UINT message, WPARAM wParam, LPA
 {
 	std::array<wchar_t, 256> title {};
 	const auto length = GetWindowTextW(window, title.data(), static_cast<int>(title.size()));
-	return std::wstring(title.data(), length > 0 ? static_cast<size_t>(length) : 0);
+	return {title.data(), length > 0 ? static_cast<size_t>(length) : 0};
 }
 
 [[nodiscard]] spdlog::logger& LoggerOf(const OverlayHost& host)
@@ -83,7 +85,7 @@ HWND FindProcessWindow(std::wstring_view title)
 	{
 		std::wstring_view title;
 		HWND found = nullptr;
-	} search {title};
+	} search {.title = title};
 	EnumWindows(
 	    [](HWND window, LPARAM context) -> BOOL {
 		    auto& s = *reinterpret_cast<Search*>(context);
@@ -135,7 +137,7 @@ Overlay::~Overlay()
 	Shutdown();
 	// The hooks wait for the calls that are in progress, so that no call uses the members after this point.
 	_hooks.reset();
-	std::unique_lock lock(_mutex, k_LockTimeout);
+	const std::unique_lock lock(_mutex, k_LockTimeout);
 	if (!lock.owns_lock() || _context == nullptr)
 	{
 		// A draw is still in progress. The context and the renderer stay in memory; the bar does not use them again.
@@ -196,7 +198,7 @@ VisibilityChange Overlay::Tick(bool menuOpen, bool togglePin)
 	{
 		_log.info("menu bar: {} (game menu {}, pinned {})", change.shown ? "shows" : "hides", menuOpen, _visibility.Pinned());
 		// The keys and the buttons that ImGui holds go up, so that no control stays active while the bar hides.
-		if (std::unique_lock lock(_mutex, k_LockTimeout); lock.owns_lock() && _context != nullptr && !_failed.load())
+		if (const std::unique_lock lock(_mutex, k_LockTimeout); lock.owns_lock() && _context != nullptr && !_failed.load())
 		{
 			ImGui::SetCurrentContext(_context);
 			ImGui::GetIO().AddFocusEvent(change.shown && GetForegroundWindow() == _window);
@@ -254,10 +256,10 @@ InputDecision Overlay::OnWindowMessage(HWND window, UINT message, WPARAM wParam,
 		WPARAM wParam;
 		LPARAM lParam;
 		InputDecision decision;
-	} call {this, window, message, wParam, lParam, {}};
+	} call {.self = this, .window = window, .message = message, .wParam = wParam, .lParam = lParam, .decision = {}};
 	const auto work = [](void* context) {
 		auto& c = *static_cast<Call*>(context);
-		std::unique_lock lock(c.self->_mutex, k_LockTimeout);
+		const std::unique_lock lock(c.self->_mutex, k_LockTimeout);
 		if (!lock.owns_lock() || c.self->_context == nullptr || c.window != c.self->_window)
 		{
 			return;
@@ -278,6 +280,7 @@ InputDecision Overlay::OnWindowMessage(HWND window, UINT message, WPARAM wParam,
 	return call.decision;
 }
 
+// NOLINTNEXTLINE(bugprone-exception-escape): GuardedCall stops each exception of Present.
 void Overlay::BeforePresent(IDXGISwapChain* swapChain, UINT flags) noexcept
 {
 	// While the bar does not show, the hook only counts the call and reads two flags. The bar does nothing with the
@@ -302,7 +305,7 @@ void Overlay::BeforePresent(IDXGISwapChain* swapChain, UINT flags) noexcept
 	{
 		Overlay* self;
 		IDXGISwapChain* swapChain;
-	} call {this, swapChain};
+	} call {.self = this, .swapChain = swapChain};
 	const auto work = [](void* context) {
 		auto& c = *static_cast<Call*>(context);
 		c.self->Present(c.swapChain);
@@ -330,7 +333,7 @@ void Overlay::BeforeResizeBuffers(IDXGISwapChain* swapChain) noexcept
 	}
 	const auto work = [](void* context) {
 		auto* self = static_cast<Overlay*>(context);
-		std::unique_lock lock(self->_mutex, k_LockTimeout);
+		const std::unique_lock lock(self->_mutex, k_LockTimeout);
 		if (!lock.owns_lock())
 		{
 			// The renderer cannot release the buffers now, so it starts again at the next frame.
@@ -374,7 +377,7 @@ bool Overlay::Bind(IDXGISwapChain* swapChain)
 	{
 		throw std::runtime_error("the swap chain of the game window has no Direct3D 11 device");
 	}
-	std::unique_lock lock(_mutex, k_LockTimeout);
+	const std::unique_lock lock(_mutex, k_LockTimeout);
 	if (!lock.owns_lock())
 	{
 		return false;
@@ -426,7 +429,7 @@ void Overlay::Present(IDXGISwapChain* swapChain)
 	{
 		return;
 	}
-	std::unique_lock lock(_mutex, k_LockTimeout);
+	const std::unique_lock lock(_mutex, k_LockTimeout);
 	if (lock.owns_lock())
 	{
 		DrawFrame(swapChain);

@@ -34,16 +34,16 @@ struct FakeSection
 /// Make the headers of a small 64-bit PE image with the sections.
 [[nodiscard]] std::vector<std::byte> FakeHeaders(std::initializer_list<FakeSection> sections, std::uint16_t magic = 0x020b)
 {
-	constexpr std::size_t ntOffset = 0x80;
-	constexpr std::uint16_t optionalSize = 0xf0;
+	constexpr std::size_t k_NtOffset = 0x80;
+	constexpr std::uint16_t k_OptionalSize = 0xf0;
 	std::vector<std::byte> bytes(0x400);
 	Put<std::uint16_t>(bytes, 0, 0x5a4d);
-	Put<std::uint32_t>(bytes, 0x3c, ntOffset);
-	Put<std::uint32_t>(bytes, ntOffset, 0x00004550);
-	Put<std::uint16_t>(bytes, ntOffset + 4 + 2, static_cast<std::uint16_t>(sections.size()));
-	Put<std::uint16_t>(bytes, ntOffset + 4 + 16, optionalSize);
-	Put<std::uint16_t>(bytes, ntOffset + 24, magic);
-	std::size_t entry = ntOffset + 24 + optionalSize;
+	Put<std::uint32_t>(bytes, 0x3c, k_NtOffset);
+	Put<std::uint32_t>(bytes, k_NtOffset, 0x00004550);
+	Put<std::uint16_t>(bytes, k_NtOffset + 4 + 2, static_cast<std::uint16_t>(sections.size()));
+	Put<std::uint16_t>(bytes, k_NtOffset + 4 + 16, k_OptionalSize);
+	Put<std::uint16_t>(bytes, k_NtOffset + 24, magic);
+	std::size_t entry = k_NtOffset + 24 + k_OptionalSize;
 	for (const auto& section : sections)
 	{
 		std::memcpy(bytes.data() + entry, section.name.data(), section.name.size());
@@ -90,31 +90,33 @@ TEST(GameStart, GivesTheGameFolderOfTheProgram)
 
 TEST(GameStart, ReadsTheSectionTable)
 {
-	const auto headers = FakeHeaders({{".text", 0x1000, 0x2000}, {".rdata", 0x3000, 0x500}, {".ooa", 0x4000, 0x100}});
+	const auto headers = FakeHeaders({{.name = ".text", .virtualAddress = 0x1000, .virtualSize = 0x2000},
+	                                  {.name = ".rdata", .virtualAddress = 0x3000, .virtualSize = 0x500},
+	                                  {.name = ".ooa", .virtualAddress = 0x4000, .virtualSize = 0x100}});
 	const auto sections = ReadPeSections(headers);
 	ASSERT_TRUE(sections) << sections.GetError().message;
 	ASSERT_EQ(sections->size(), 3U);
-	const auto text = FindPeSection(*sections, ".text");
-	ASSERT_TRUE(text);
-	EXPECT_EQ(text->virtualAddress, 0x1000U);
-	EXPECT_EQ(text->virtualSize, 0x2000U);
-	EXPECT_EQ(FindPeSection(*sections, ".ooa")->virtualAddress, 0x4000U);
+	const auto text = FindPeSection(*sections, ".text").value_or(PeSection {});
+	EXPECT_EQ(text.name, ".text");
+	EXPECT_EQ(text.virtualAddress, 0x1000U);
+	EXPECT_EQ(text.virtualSize, 0x2000U);
+	EXPECT_EQ(FindPeSection(*sections, ".ooa").value_or(PeSection {}).virtualAddress, 0x4000U);
 	EXPECT_FALSE(FindPeSection(*sections, ".data"));
 }
 
 TEST(GameStart, RefusesHeadersThatAreNotA64BitImage)
 {
 	EXPECT_FALSE(ReadPeSections({}));
-	EXPECT_FALSE(ReadPeSections(FakeHeaders({{".text", 0x1000, 0x2000}}, 0x010b)));
-	auto noSignature = FakeHeaders({{".text", 0x1000, 0x2000}});
+	EXPECT_FALSE(ReadPeSections(FakeHeaders({{.name = ".text", .virtualAddress = 0x1000, .virtualSize = 0x2000}}, 0x010b)));
+	auto noSignature = FakeHeaders({{.name = ".text", .virtualAddress = 0x1000, .virtualSize = 0x2000}});
 	Put<std::uint32_t>(noSignature, 0x80, 0);
 	EXPECT_FALSE(ReadPeSections(noSignature));
 	// A section table that goes past the end of the bytes.
-	auto shortTable = FakeHeaders({{".text", 0x1000, 0x2000}});
+	auto shortTable = FakeHeaders({{.name = ".text", .virtualAddress = 0x1000, .virtualSize = 0x2000}});
 	Put<std::uint16_t>(shortTable, 0x80 + 4 + 2, 100);
 	EXPECT_FALSE(ReadPeSections(shortTable));
 	// An offset of the NT headers that is past the end of the bytes.
-	auto farOffset = FakeHeaders({{".text", 0x1000, 0x2000}});
+	auto farOffset = FakeHeaders({{.name = ".text", .virtualAddress = 0x1000, .virtualSize = 0x2000}});
 	Put<std::uint32_t>(farOffset, 0x3c, 0xfffffff0);
 	EXPECT_FALSE(ReadPeSections(farOffset));
 }
@@ -157,7 +159,7 @@ TEST(GameStart, DividesASectionIntoSampleBlocks)
 	}
 
 	// A section with space for only three blocks gives three blocks.
-	EXPECT_EQ(SampleBlocks(3 * 4096 + 10, 4096, 8).size(), 3U);
+	EXPECT_EQ(SampleBlocks((3 * 4096) + 10, 4096, 8).size(), 3U);
 }
 
 TEST(GameStart, WaitsForAStableDecryptedSection)

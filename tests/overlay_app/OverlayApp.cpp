@@ -12,7 +12,9 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include <array>
 #include <chrono>
+#include <exception>
 #include <format>
 #include <functional>
 #include <memory>
@@ -41,8 +43,8 @@ using namespace ts4_mod;
 using namespace ts4_mod::loader;
 using namespace ts4_mod::overlay;
 
-constexpr wchar_t k_WindowClass[] = L"Ts4OverlayTestApp";
-constexpr wchar_t k_WindowTitle[] = L"TS4 overlay test";
+constexpr const wchar_t* k_WindowClass = L"Ts4OverlayTestApp";
+constexpr const wchar_t* k_WindowTitle = L"TS4 overlay test";
 constexpr int k_Width = 1280;
 constexpr int k_Height = 720;
 /// The ticks between two snapshots of the registry for the menu bar.
@@ -101,8 +103,8 @@ uint32_t SetField(void* user, const Ts4FieldValue* value, uint32_t /*save*/, Ts4
 	{
 		*field.choice = value->choice;
 	}
-	constexpr std::string_view text = "the fake field changed";
-	message->assign(message->context, text.data(), text.size());
+	constexpr std::string_view k_Text = "the fake field changed";
+	message->assign(message->context, k_Text.data(), k_Text.size());
 	return 1;
 }
 
@@ -209,10 +211,10 @@ struct FakeMods
 		    FieldBinding {.state = &state, .toggle = &state.needsFreeze},
 		    FieldBinding {.state = &state, .number = &state.needsDecay},
 		};
-		static constexpr const char* k_Modes[] = {"Classic", "Free", "Follow"};
+		static constexpr std::array<const char*, 3> k_Modes {"Classic", "Free", "Follow"};
 		auto scale = Field("overlay", "fontScale", "Text size", TS4_FIELD_NUMBER, 0.5, 3.0);
 		scale.group = "Menu bar";
-		Check(registry.AddField(k_LoaderOwner, scale, &GetField, &SetField, &bindings[0]));
+		Check(registry.AddField(k_LoaderOwner, scale, &GetField, &SetField, bindings.data()));
 		Check(registry.AddSettings(1, "camera", &LoadSettings, nullptr));
 		Check(registry.AddSettings(2, "needs", &LoadSettings, nullptr));
 		Check(registry.AddField(1, Field("camera", "enabled", "Camera on", TS4_FIELD_TOGGLE, 0, 0), &GetField, &SetField,
@@ -220,8 +222,8 @@ struct FakeMods
 		Check(registry.AddField(1, Field("camera", "zoom", "Zoom", TS4_FIELD_NUMBER, 0.5, 8.0), &GetField, &SetField,
 		                        &bindings[2]));
 		auto mode = Field("camera", "mode", "Mode", TS4_FIELD_CHOICE, 0, 0);
-		mode.choices = k_Modes;
-		mode.choiceCount = 3;
+		mode.choices = k_Modes.data();
+		mode.choiceCount = static_cast<uint32_t>(k_Modes.size());
 		Check(registry.AddField(1, mode, &GetField, &SetField, &bindings[3]));
 		const Ts4ActionDesc reset {.menu = nullptr,
 		                           .group = "Actions",
@@ -269,7 +271,7 @@ struct FakeMods
 		                                   {{"name", "Better Needs"}, {"enabled", true}, {"ready", true}, {"active", false}}}),
 		    .hooks = {{"ZoneLoad", {{"installed", true}, {"calls", 3}}}},
 		    .lastReload = {{"time", "12:00:00"}, {"source", "start"}, {"applied", true}},
-		    .settingsPath = "C:\\Users\\you\\AppData\\Local\\Sims4Mods\\mods.json",
+		    .settingsPath = R"(C:\Users\you\AppData\Local\Sims4Mods\mods.json)",
 		    .gameVersion = "1.128.90.1030",
 		    .version = "0.1.0",
 		    .live = true,
@@ -290,7 +292,7 @@ struct FakeMods
 		                                                            .sha256 = std::string(64, 'c'),
 		                                                            .state = mods::ModDllState::Refused,
 		                                                            .error = "the DLL has no export Ts4ModGetInfo"})}),
-		    .dllFolder = "C:\\Users\\you\\AppData\\Local\\Sims4Mods\\dlls",
+		    .dllFolder = R"(C:\Users\you\AppData\Local\Sims4Mods\dlls)",
 		};
 	}
 
@@ -414,7 +416,7 @@ struct Graphics
 
 [[nodiscard]] int Run(double seconds, double fontScale)
 {
-	const auto instance = GetModuleHandleW(nullptr);
+	auto* const instance = GetModuleHandleW(nullptr);
 	const WNDCLASSEXW windowClass {.cbSize = sizeof(WNDCLASSEXW),
 	                               .lpfnWndProc = &AppWindowProc,
 	                               .hInstance = instance,
@@ -423,7 +425,7 @@ struct Graphics
 	RegisterClassExW(&windowClass);
 	RECT frame {0, 0, k_Width, k_Height};
 	AdjustWindowRect(&frame, WS_OVERLAPPEDWINDOW, FALSE);
-	const auto window =
+	auto* const window =
 	    CreateWindowExW(0, k_WindowClass, k_WindowTitle, WS_OVERLAPPEDWINDOW, 100, 100, frame.right - frame.left,
 	                    frame.bottom - frame.top, nullptr, nullptr, instance, nullptr);
 	if (window == nullptr)
@@ -461,7 +463,7 @@ struct Graphics
 	while (running && std::chrono::steady_clock::now() < end)
 	{
 		MSG message {};
-		while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE))
+		while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE) != 0)
 		{
 			if (message.message == WM_QUIT)
 			{
@@ -479,11 +481,11 @@ struct Graphics
 			(*overlay)->Publish(mods.Snapshot());
 		}
 		++tick;
-		const float shade = 0.15f + 0.05f * static_cast<float>(tick % 120) / 120.0f;
-		const float colour[] = {shade, shade * 1.4f, shade * 2.0f, 1.0f};
-		ID3D11RenderTargetView* targets[] = {graphics->target.Get()};
-		graphics->context->OMSetRenderTargets(1, targets, nullptr);
-		graphics->context->ClearRenderTargetView(graphics->target.Get(), colour);
+		const float shade = 0.15f + (0.05f * static_cast<float>(tick % 120) / 120.0f);
+		const std::array colour {shade, shade * 1.4f, shade * 2.0f, 1.0f};
+		ID3D11RenderTargetView* const target = graphics->target.Get();
+		graphics->context->OMSetRenderTargets(1, &target, nullptr);
+		graphics->context->ClearRenderTargetView(target, colour.data());
 		graphics->swapChain->Present(1, 0);
 	}
 
@@ -491,7 +493,7 @@ struct Graphics
 	std::printf("%s\n", status.dump(2).c_str());
 	const bool drawn = status.value("framesDrawn", uint64_t {0}) > 0;
 	overlay->reset();
-	if (IsWindow(window))
+	if (IsWindow(window) != 0)
 	{
 		DestroyWindow(window);
 	}
@@ -518,5 +520,13 @@ int main(int argc, char** argv)
 		}
 	}
 	spdlog::set_level(spdlog::level::info);
-	return Run(seconds, fontScale);
+	try
+	{
+		return Run(seconds, fontScale);
+	}
+	catch (const std::exception& error)
+	{
+		spdlog::error("app: {}", error.what());
+		return 1;
+	}
 }
